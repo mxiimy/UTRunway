@@ -33,3 +33,4 @@ biocViews:
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.1
+LazyData: true
