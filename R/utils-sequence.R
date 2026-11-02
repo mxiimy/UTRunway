@@ -162,3 +162,242 @@ firstInFrameStop <- function(sequence, from) {
   }
   as.integer(x = codon_starts[[hit[[1]]]])
 }
+
+#' The G-quadruplex-prone sequence pattern
+#'
+#' Four runs of at least three G's, each separated by a loop of one to
+#' seven nucleotides. Written as a regular expression because it needs
+#' quantifiers, which IUPAC motif matching cannot express. The same
+#' pattern is used to screen the backgrounds of the bundled dataset,
+#' so detection and that dataset's ground truth agree by construction.
+#'
+#' @return A character string holding a regular expression.
+#' @noRd
+gQuadruplexPattern <- function() {
+  paste0(
+    "G{3,}[ACGT]{1,7}G{3,}[ACGT]{1,7}G{3,}[ACGT]{1,7}G{3,}"
+  )
+}
+
+#' The 5' terminal oligopyrimidine (TOP) motif pattern
+#'
+#' A C at the very 5' end followed by a run of at least four further
+#' pyrimidines. Anchored, because a TOP motif is defined by sitting at
+#' the transcription start site rather than by occurring anywhere.
+#'
+#' @return A character string holding a regular expression.
+#' @noRd
+topMotifPattern <- function() {
+  "^C[CT]{4,}"
+}
+
+#' The IUPAC nucleotide alphabet
+#'
+#' @return A character string of the permitted motif letters.
+#' @noRd
+iupacLetters <- function() {
+  "ACGTMRWSYKVHDBN"
+}
+
+#' Validate a region argument
+#'
+#' Checked against the permitted values exactly, with no partial
+#' matching, so that a mistyped region fails rather than being guessed.
+#'
+#' @param region Value supplied by the caller.
+#' @param arg_name Name of the caller's argument, for error messages.
+#' @return The region as a character string of length one.
+#' @noRd
+validateRegion <- function(region, arg_name = "region") {
+  permitted <- c("utr5", "cds", "utr3")
+
+  if (is.null(x = region)) {
+    stop(
+      "`", arg_name, "` must be one of ",
+      paste0("\"", permitted, "\"", collapse = ", "), ", not NULL.",
+      call. = FALSE
+    )
+  }
+  if (!is.character(x = region) || length(x = region) != 1L) {
+    stop(
+      "`", arg_name, "` must be a single character string, one of ",
+      paste0("\"", permitted, "\"", collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  if (is.na(x = region) || !region %in% permitted) {
+    stop(
+      "`", arg_name, "` must be one of ",
+      paste0("\"", permitted, "\"", collapse = ", "), ", not \"",
+      region, "\".",
+      call. = FALSE
+    )
+  }
+
+  region
+}
+
+#' Validate and normalise a named vector of IUPAC motifs
+#'
+#' @param motifs Value supplied by the caller.
+#' @param arg_name Name of the caller's argument, for error messages.
+#' @return A named character vector of upper-case DNA IUPAC motifs.
+#' @noRd
+validateMotifVector <- function(motifs, arg_name) {
+  if (!is.character(x = motifs)) {
+    stop(
+      "`", arg_name, "` must be a named character vector of motifs, ",
+      "not an object of class \"", class(x = motifs)[[1]], "\".",
+      call. = FALSE
+    )
+  }
+  if (length(x = motifs) == 0L) {
+    stop(
+      "`", arg_name, "` must contain at least one motif.",
+      call. = FALSE
+    )
+  }
+  if (anyNA(x = motifs)) {
+    stop("`", arg_name, "` must not contain NA.", call. = FALSE)
+  }
+
+  motif_names <- names(x = motifs)
+  if (is.null(x = motif_names) || any(!nzchar(x = motif_names))) {
+    stop(
+      "`", arg_name, "` must be named, so that each match can be ",
+      "reported against the motif it came from.",
+      call. = FALSE
+    )
+  }
+  if (anyDuplicated(x = motif_names) != 0L) {
+    stop(
+      "`", arg_name, "` must have unique names, but these are ",
+      "repeated: ",
+      paste(unique(x = motif_names[duplicated(x = motif_names)]),
+            collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  normalised <- gsub(
+    pattern = "U", replacement = "T", x = toupper(x = motifs)
+  )
+  if (any(!nzchar(x = normalised))) {
+    stop(
+      "`", arg_name, "` must not contain empty motifs, but these are ",
+      "empty: ",
+      paste(motif_names[!nzchar(x = normalised)], collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+
+  permitted <- paste0("[^", iupacLetters(), "]")
+  is_bad <- grepl(pattern = permitted, x = normalised)
+  if (any(is_bad)) {
+    stop(
+      "`", arg_name, "` must contain only IUPAC nucleotide codes (",
+      iupacLetters(), "), but these motifs do not: ",
+      paste(motif_names[is_bad], collapse = ", "),
+      ". Motifs are nucleotide patterns, not regular expressions.",
+      call. = FALSE
+    )
+  }
+
+  stats::setNames(object = normalised, nm = motif_names)
+}
+
+#' Find every match of an IUPAC motif, overlapping matches included
+#'
+#' @param sequence An upper-case DNA character string of length one.
+#' @param motif An upper-case DNA IUPAC motif.
+#' @return A list of equal-length `start`, `end` and `match` vectors.
+#' @noRd
+matchIupacMotif <- function(sequence, motif) {
+  if (nchar(x = motif) > nchar(x = sequence)) {
+    return(list(
+      start = integer(length = 0L),
+      end = integer(length = 0L),
+      match = character(length = 0L)
+    ))
+  }
+
+  hits <- Biostrings::matchPattern(
+    pattern = motif,
+    subject = Biostrings::DNAString(x = sequence),
+    fixed = FALSE
+  )
+
+  list(
+    start = as.integer(x = IRanges::start(x = hits)),
+    end = as.integer(x = IRanges::end(x = hits)),
+    match = as.character(x = hits)
+  )
+}
+
+#' Find every match of a regular expression
+#'
+#' @param sequence An upper-case DNA character string of length one.
+#' @param pattern A regular expression.
+#' @return A list of equal-length `start`, `end` and `match` vectors.
+#' @noRd
+matchRegexPattern <- function(sequence, pattern) {
+  hits <- gregexpr(pattern = pattern, text = sequence)[[1]]
+
+  if (hits[[1]] == -1L) {
+    return(list(
+      start = integer(length = 0L),
+      end = integer(length = 0L),
+      match = character(length = 0L)
+    ))
+  }
+
+  start <- as.integer(x = hits)
+  end <- start + attr(x = hits, which = "match.length") - 1L
+
+  list(
+    start = start,
+    end = end,
+    match = substring(text = sequence, first = start, last = end)
+  )
+}
+
+#' Validate a single proportion argument
+#'
+#' @param value Value supplied by the caller.
+#' @param arg_name Name of the caller's argument, for error messages.
+#' @return The value as a numeric of length one, between 0 and 1.
+#' @noRd
+validateProportion <- function(value, arg_name) {
+  if (is.null(x = value)) {
+    stop(
+      "`", arg_name, "` must be a single proportion between 0 and 1, ",
+      "not NULL.",
+      call. = FALSE
+    )
+  }
+  if (!is.numeric(x = value) || length(x = value) != 1L) {
+    stop(
+      "`", arg_name, "` must be a single number between 0 and 1, but ",
+      "it has class \"", class(x = value)[[1]], "\" and length ",
+      length(x = value), ".",
+      call. = FALSE
+    )
+  }
+  if (is.na(x = value) || !is.finite(x = value)) {
+    stop(
+      "`", arg_name, "` must be a finite proportion, not ", value, ".",
+      call. = FALSE
+    )
+  }
+  if (value < 0 || value > 1) {
+    stop(
+      "`", arg_name, "` must be a proportion between 0 and 1, not ",
+      value, ". To express it as a percentage of region length, ",
+      "divide by 100: 5 percent is 0.05.",
+      call. = FALSE
+    )
+  }
+
+  as.numeric(x = value)
+}

@@ -4,7 +4,7 @@
 \alias{estimateStructure}
 \title{Estimate Local RNA Structure With a Sequence-Only Proxy}
 \usage{
-estimateStructure(sequence, window = 40, step = 10, min_stem = 5, min_loop = 3)
+estimateStructure(sequence, window = 40, step = 10, min_stem = 8, min_loop = 3)
 }
 \arguments{
 \item{sequence}{Character string of length one, the sequence to
@@ -15,7 +15,9 @@ scan. Upper or lower case, DNA or RNA alphabet.}
 \item{step}{Single whole number, how far each window advances.}
 
 \item{min_stem}{Single whole number, the shortest complementary run
-counted as a possible stem.}
+counted as a possible stem for \code{hairpin_flag}. Defaults to
+8; see the section on why. It does not affect
+\code{max_stem_nt}.}
 
 \item{min_loop}{Single whole number, the fewest nucleotides that
 must separate the two runs, standing in for the turn a hairpin
@@ -30,8 +32,12 @@ A data frame with one row per window and these columns:
       nucleotide.}
     \item{gc_content}{Numeric. Proportion of G and C in the window,
       between 0 and 1.}
-    \item{hairpin_flag}{Logical. \code{TRUE} if the window contains
-      a possible hairpin stem as described above.}
+    \item{max_stem_nt}{Integer. Length of the longest pair of
+      reverse-complementary runs found in the window that are far
+      enough apart to leave a loop, or \code{0} if none reach two
+      nucleotides. Independent of \code{min_stem}.}
+    \item{hairpin_flag}{Logical. \code{TRUE} when
+      \code{max_stem_nt} is at least \code{min_stem}.}
   }
 }
 \description{
@@ -48,10 +54,12 @@ window are not covered. When the sequence is shorter than
 \code{window}, a single window spanning the whole sequence is used
 and a warning is raised.
 
-A window is flagged when it contains two runs of at least
-\code{min_stem} nucleotides that are the reverse complement of each
-other and are separated by at least \code{min_loop} nucleotides,
-which is the smallest arrangement that could close a hairpin.
+Within each window, the scan finds the longest pair of runs that
+are the reverse complement of one another and are separated by at
+least \code{min_loop} nucleotides, which is the smallest
+arrangement that could close a hairpin. That length is reported as
+\code{max_stem_nt}, and \code{hairpin_flag} is simply whether it
+reaches \code{min_stem}.
 }
 \section{This is a proxy, not a folding prediction}{
 
@@ -70,17 +78,44 @@ What follows from that, and matters when reading the results:
     formed between two distant parts of a transcript is invisible
     however stable it would be. Widening \code{window} widens the
     reach, at the cost of blurring where the signal is.
-  \item \strong{No stability is estimated.} A flagged stem of five
-    A-U pairs counts the same as five G-C pairs, though the latter
-    is far more stable. GC content is reported alongside partly to
+  \item \strong{No stability is estimated.} A stem of eight A-U
+    pairs counts the same as eight G-C pairs, though the latter is
+    far more stable. GC content is reported alongside partly to
     offset this.
   \item \strong{Competing structures are ignored.} A real sequence
     folds into one structure out of many possible ones; this scan
     reports that a pairing is possible, not that it forms.
-  \item \strong{False positives are expected.} Short complementary
-    runs occur in random sequence, so a flag is a hint worth
-    looking at, not evidence of a hairpin.
 }
+}
+
+\section{Why the default stem length is eight}{
+
+Short complementary runs are everywhere in random sequence, so a
+short stem requirement reports nothing but base composition. The
+rate at which windows of the bundled simulated constructs are
+flagged, against the rate for the same sequences shuffled, which
+destroys any structure while preserving composition:
+
+\tabular{rrr}{
+  \strong{min_stem} \tab \strong{flagged} \tab \strong{shuffled} \cr
+  4 \tab 79\% \tab - \cr
+  5 \tab 28\% \tab 37\% \cr
+  7 \tab 1.3\% \tab - \cr
+  8 \tab 0.5\% \tab 0\%
+}
+
+At a five nucleotide stem, shuffled sequence is flagged at least as
+often as real sequence: the flag carries no information about
+structure at that setting. A chance five nucleotide pairing is
+expected about once per forty nucleotide window, against about once
+per hundred windows at eight. The default is therefore eight, where
+a flag is rarer than chance and so worth looking at.
+
+Because any threshold is a blunt instrument, \code{max_stem_nt}
+reports the longest complementary run actually found in each
+window, whatever \code{min_stem} is set to. Prefer it to
+\code{hairpin_flag} when comparing candidates: it is a measurement
+rather than the result of a cutoff.
 
 Use it to compare candidate designs against one another on the same
 settings, which is what UTRunway does with it. Do not read it as a
@@ -105,10 +140,15 @@ profile
 # most likely.
 profile[which.max(x = profile$gc_content), ]
 
+# max_stem_nt is a measurement, so it can be compared directly
+# across windows without choosing a cutoff.
+profile[which.max(x = profile$max_stem_nt), ]
+
 # Finer windows resolve more detail but reach shorter distances.
 estimateStructure(sequence = structured$utr5, window = 20, step = 20)
 
-# A clear hairpin: two complementary runs around a short loop.
+# A clear hairpin: two eight nucleotide complementary runs around a
+# three nucleotide loop.
 estimateStructure(
   sequence = "GGGGCCCCAAAGGGGCCCCTTTTTTTTTTTTTTTTTTTT",
   window = 39

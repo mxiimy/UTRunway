@@ -38,6 +38,11 @@ compares whole candidate constructs from their sequence, with scoring
 focused on the untranslated regions.
 }
 
+\references{
+Liu, M., Zi, B., Zhang, H. and Zhang, H. (2025). cubar: a versatile
+package for codon usage bias analysis in R. \emph{Genetics},
+iyaf191. \doi{10.1093/genetics/iyaf191}
+}
 \author{
 Melody Mo \email{melody.mo@mail.utoronto.ca}
 }

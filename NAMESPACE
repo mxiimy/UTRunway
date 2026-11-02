@@ -2,9 +2,17 @@
 
 export(estimateStructure)
 export(findUpstreamORFs)
+export(profileCDS)
+export(scanDecayElements)
+export(scanMotifs)
 export(scoreKozak)
 importFrom(Biostrings,
   DNAString,
   letterFrequency,
+  matchPattern,
   reverseComplement
+)
+importFrom(IRanges,
+  end,
+  start
 )

@@ -13,13 +13,63 @@ test_that("the result has the documented columns and types", {
   expect_identical(
     object = names(x = result),
     expected = c(
-      "window_start", "window_end", "gc_content", "hairpin_flag"
+      "window_start", "window_end", "gc_content", "max_stem_nt",
+      "hairpin_flag"
     )
   )
   expect_type(object = result$window_start, type = "integer")
   expect_type(object = result$window_end, type = "integer")
   expect_type(object = result$gc_content, type = "double")
+  expect_type(object = result$max_stem_nt, type = "integer")
   expect_type(object = result$hairpin_flag, type = "logical")
+})
+
+test_that("hairpin_flag is max_stem_nt measured against min_stem", {
+  data(simulatedConstructs, package = "UTRunway")
+  utr5 <- simulatedConstructs$utr5[[5]]
+
+  for (stem in c(4L, 6L, 8L)) {
+    result <- estimateStructure(sequence = utr5, min_stem = stem)
+    expect_identical(
+      object = result$hairpin_flag,
+      expected = result$max_stem_nt >= stem,
+      info = paste("min_stem", stem)
+    )
+  }
+
+  # max_stem_nt is a measurement, so it does not move when the
+  # threshold does.
+  expect_identical(
+    object = estimateStructure(sequence = utr5, min_stem = 4)$max_stem_nt,
+    expected = estimateStructure(sequence = utr5, min_stem = 9)$max_stem_nt
+  )
+  expect_true(object = all(result$max_stem_nt >= 0L))
+})
+
+test_that("max_stem_nt finds the longest complementary run", {
+  # Two eight nucleotide complementary runs around a three
+  # nucleotide loop, and nothing longer.
+  single <- estimateStructure(
+    sequence = "GGGGCCCCAAAGGGGCCCC", window = 19
+  )
+  expect_identical(object = single$max_stem_nt, expected = 8L)
+  expect_true(object = single$hairpin_flag)
+
+  # No complementarity at all.
+  flat <- estimateStructure(
+    sequence = paste(rep(x = "A", times = 30), collapse = ""),
+    window = 30
+  )
+  expect_identical(object = flat$max_stem_nt, expected = 0L)
+  expect_false(object = flat$hairpin_flag)
+
+  # A stem cannot exceed what two copies plus a loop allow.
+  result <- estimateStructure(
+    sequence = paste(rep(x = "ACGT", times = 10), collapse = ""),
+    window = 40,
+    min_loop = 3
+  )
+  expect_true(object = all(result$max_stem_nt <= (40L - 3L) %/% 2L))
 })
 
 test_that("windows follow the requested width and step", {
@@ -122,7 +172,9 @@ test_that("a designed hairpin is flagged and a flat sequence is not", {
 test_that("the flagged stem and partner really are complementary", {
   data(simulatedConstructs, package = "UTRunway")
   utr5 <- simulatedConstructs$utr5[[5]]
-  result <- estimateStructure(sequence = utr5)
+  # A five nucleotide stem is common enough that flagged windows
+  # exist to check; the default of eight is deliberately stricter.
+  result <- estimateStructure(sequence = utr5, min_stem = 5)
   flagged <- which(result$hairpin_flag)
   skip_if(
     condition = length(x = flagged) == 0L,
@@ -169,13 +221,29 @@ test_that("min_stem and min_loop change what counts as a hairpin", {
 
   expect_false(
     object = estimateStructure(
-      sequence = sequence, window = 18, min_loop = 3
+      sequence = sequence, window = 18, min_stem = 5, min_loop = 3
     )$hairpin_flag
   )
   expect_true(
     object = estimateStructure(
-      sequence = sequence, window = 18, min_loop = 2
+      sequence = sequence, window = 18, min_stem = 5, min_loop = 2
     )$hairpin_flag
+  )
+
+  # The same shift shows up in the measurement, not just the flag.
+  # min_stem is set low only so that the window is wide enough to
+  # hold two stems and a loop, which avoids an unrelated warning.
+  expect_identical(
+    object = estimateStructure(
+      sequence = sequence, window = 18, min_stem = 4, min_loop = 3
+    )$max_stem_nt,
+    expected = 4L
+  )
+  expect_identical(
+    object = estimateStructure(
+      sequence = sequence, window = 18, min_stem = 4, min_loop = 2
+    )$max_stem_nt,
+    expected = 5L
   )
 
   # Demanding a longer stem can only ever remove flags, never add
@@ -223,7 +291,7 @@ test_that("a window too narrow to hold a stem-loop warns", {
       window = 8,
       step = 8
     ),
-    regexp = "narrower than the 13 nucleotides"
+    regexp = "narrower than the 19 nucleotides"
   )
   result <- suppressWarnings(
     estimateStructure(
