@@ -1,1 +1,7 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.Rhistory$
 ^LICENSE\.md$
+^README\.Rmd$
+^data-raw$
+^.*\.gitkeep$

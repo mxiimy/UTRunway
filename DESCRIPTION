@@ -2,17 +2,23 @@ Package: UTRunway
 Type: Package
 Title: Profile and Rank Candidate mRNA Construct Designs
 Version: 0.1.0
-Authors@R: person("Melody", "Mo", email = "melody.mo@mail.utoronto.ca", role = c("aut", "cre"))
-Maintainer: Melody Mo <melody.mo@mail.utoronto.cal>
-Description: Profiles candidate messenger RNA constructs across the
-    5' untranslated region, coding sequence, and 3' untranslated region,
-    scoring the sequence features that drive translation initiation and
-    transcript stability. Ranks candidate designs against one another and
-    visualises the whole construct as a single annotated map.
+Authors@R:
+    person(given = "Melody", family = "Mo",
+           email = "melody.mo@mail.utoronto.ca",
+           role = c("aut", "cre"))
+Description: Profiles candidate messenger RNA (mRNA) constructs supplied as
+    a 5' untranslated region (UTR), coding sequence and 3' UTR, using
+    sequence alone. Computes the UTR sequence features that drive
+    translation initiation and transcript stability, including Kozak
+    context, upstream open reading frames, a lightweight secondary
+    structure proxy and 3' UTR decay elements, and ranks candidate designs
+    against one another on those UTR features. Coding sequence features are
+    reported as context but are not scored. Visualises the whole construct
+    as a single annotated multi-track map.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
-RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.1.0)
 Imports:
     Biostrings,
     IRanges,
@@ -23,3 +29,7 @@ Suggests:
     testthat (>= 3.0.0),
     knitr,
     rmarkdown
+biocViews:
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.1
