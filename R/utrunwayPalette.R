@@ -101,16 +101,25 @@ utrunwayPalette <- function() {
 #'
 #' Only the symbols that accept a fill, \code{21} to \code{25}, are
 #' used, since a symbol without one would drop its colour and leave
-#' the mark black. There are more feature classes than such symbols,
-#' so a shape is reused between tracks, never within one: position
-#' separates the reuses, and no track repeats a shape.
+#' the mark black.
+#'
+#' There are more feature classes than such symbols, so a symbol is
+#' reused. What is guaranteed instead is that no two classes share
+#' \strong{both} a symbol and a colour: a square is either the aqua
+#' TOP motif or the green polyA variant, never ambiguous. Each class
+#' also sits on its own named row, which is what identifies it; the
+#' symbol and colour are there so that two rows never look alike.
+#'
+#' The upstream AUG rows are the deliberate exception. They share a
+#' symbol because they are one class, differing in the strength of
+#' their initiation context, which their colours and row names carry.
 #'
 #' @return A named integer vector of \code{pch} values.
 #' @noRd
 utrunwayShapes <- function() {
   c(
     upstream_aug = 24L,
-    upstream_orf = 24L,
+    upstream_orf = 21L,
     top_motif = 22L,
     g_quadruplex = 23L,
     polya_signal_canonical = 21L,

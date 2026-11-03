@@ -4,7 +4,7 @@
 \alias{plotConstructMap}
 \title{Draw One Construct as an Annotated Map}
 \usage{
-plotConstructMap(feature_table, construct_id, show_cds_context = TRUE)
+plotConstructMap(feature_table, construct_id, show_cds_context = FALSE)
 }
 \arguments{
 \item{feature_table}{A tidy feature table from
@@ -14,11 +14,19 @@ plotConstructMap(feature_table, construct_id, show_cds_context = TRUE)
 construct to draw. It must appear in \code{feature_table}.}
 
 \item{show_cds_context}{Single logical. Whether to give coding
-sequence features their own rows in the annotation track. They
-are context either way and are never scored; this only decides
-whether they are drawn. Defaults to \code{TRUE}, because a
-premature stop codon is worth seeing even though it is not
-scored.}
+  sequence features their own rows in the annotation track.
+  Defaults to \code{FALSE}: the map is a figure about
+  untranslated region design, and coding sequence features are
+  never scored, so they stay out of it unless asked for. The
+  region bar still shows where the coding sequence begins and
+  ends.
+
+  Set it to \code{TRUE} to add rows for premature in-frame stop
+  codons and out-of-frame ATGs, drawn in grey and named as
+  context. Worth doing when checking a coding sequence rather than
+  comparing UTR designs, since a premature stop is a serious
+  fault even though nothing scores it. \code{\link{profileCDS}}
+  reports both whether or not they are drawn.}
 }
 \value{
 A \pkg{patchwork} object, which prints as the assembled
@@ -64,15 +72,20 @@ of its row name rather than a shade of one colour, for the same
 reason.
 }
 
-\section{The coding sequence appears as context}{
+\section{The coding sequence is left out by default}{
 
-Coding sequence features get rows like any other, but they are
-drawn in grey, their rows are named as context, and the caption
-says they take no part in any score. UTRunway ranks on
-untranslated region features alone. Pass
-\code{show_cds_context = FALSE} to leave them out altogether; the
-region bar still shows where the coding sequence begins and ends.
-See \code{\link{profileCDS}} and \code{\link{rankCandidates}}.
+Coding sequence features are not drawn unless
+\code{show_cds_context = TRUE}. UTRunway ranks on untranslated
+region features alone, and this figure is about that design
+decision, so the coding sequence appears as a labelled span in the
+region bar and nothing more.
+
+Asking for them adds rows for premature in-frame stop codons and
+out-of-frame ATGs, drawn in grey and named as context so that
+nothing suggests they are being weighed. They never are. See
+\code{\link{profileCDS}}, which reports them in full, and
+\code{\link{rankCandidates}}, which excludes them from every
+score.
 }
 
 \section{The structure track is a proxy}{
@@ -97,11 +110,12 @@ map <- plotConstructMap(
 )
 map
 
-# Untranslated region features only.
+# CONSTRUCT_03 also carries a premature stop codon. It is not
+# drawn unless asked for, since nothing scores it.
 plotConstructMap(
   feature_table = features,
   construct_id = "CONSTRUCT_03",
-  show_cds_context = FALSE
+  show_cds_context = TRUE
 )
 
 # CONSTRUCT_12 carries nine AU-rich element pentamers instead.

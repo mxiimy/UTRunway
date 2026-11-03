@@ -125,6 +125,32 @@ test_that("no coding sequence feature can reach a score", {
   )
 })
 
+test_that("changing a CDS value leaves every score untouched", {
+  # Stronger than dropping the CDS rows: if a coding sequence feature
+  # ever leaked into scoring, removing its rows might only change
+  # which features exist, while altering its values would quietly
+  # shift the numbers. Nothing here may move.
+  before <- rankCandidates(feature_table = all_features)
+
+  altered <- all_features
+  is_cds <- altered$region == "cds"
+  altered$value[is_cds] <- altered$value[is_cds] * 7 + 13
+
+  after <- rankCandidates(feature_table = altered)
+
+  expect_identical(object = after$ranking, expected = before$ranking)
+  expect_identical(
+    object = after$contributions, expected = before$contributions
+  )
+  expect_identical(object = after$weights, expected = before$weights)
+
+  # And the altered table really did differ, so the test is not
+  # passing because nothing changed.
+  expect_false(
+    object = identical(x = altered$value, y = all_features$value)
+  )
+})
+
 test_that("positional rows do not reach a score either", {
   # Ranking uses the per-region summaries; the counts among them
   # already summarise the positional rows.
@@ -372,6 +398,108 @@ test_that("a supplied weight vector gives unnamed features none", {
     ranking$contributions$weight == 0,
   ]
   expect_true(object = all(unweighted$contribution == 0))
+})
+
+test_that("weighting a feature moves candidates the way it should", {
+  data(simulatedConstructs, package = "UTRunway")
+  rank_of <- function(ranking, construct_id) {
+    ranking$rank[ranking$construct_id == construct_id]
+  }
+
+  # Scoring on AU-rich elements alone must put the construct with the
+  # most of them last, and those with none equal first. The direction
+  # is the claim: a sign error in the direction table would pass a
+  # test that only asked whether the order changed.
+  by_are <- rankCandidates(
+    feature_table = all_features, weights = c(n_are_pentamer = 1)
+  )$ranking
+  worst_are <- simulatedConstructs$construct_id[
+    which.max(x = simulatedConstructs$n_are_pentamer)
+  ]
+  none_are <- simulatedConstructs$construct_id[
+    simulatedConstructs$n_are_pentamer == 0
+  ]
+  expect_identical(
+    object = rank_of(ranking = by_are, construct_id = worst_are),
+    expected = max(by_are$rank)
+  )
+  expect_true(
+    object = all(
+      by_are$rank[by_are$construct_id %in% none_are] == 1L
+    )
+  )
+
+  # Same claim for upstream ORFs, a feature of the other region.
+  by_uorf <- rankCandidates(
+    feature_table = all_features, weights = c(n_upstream_orf = 1)
+  )$ranking
+  worst_uorf <- simulatedConstructs$construct_id[
+    which.max(x = simulatedConstructs$n_upstream_orf)
+  ]
+  expect_identical(
+    object = rank_of(ranking = by_uorf, construct_id = worst_uorf),
+    expected = max(by_uorf$rank)
+  )
+
+  # And for a feature scored the other way up: more canonical polyA
+  # signal is better, so a construct with one must beat one without.
+  by_polya <- rankCandidates(
+    feature_table = all_features, weights = c(n_polya_canonical = 1)
+  )$ranking
+  with_polya <- simulatedConstructs$construct_id[
+    simulatedConstructs$has_canonical_polya
+  ]
+  without_polya <- simulatedConstructs$construct_id[
+    !simulatedConstructs$has_canonical_polya
+  ]
+  expect_lt(
+    object = max(
+      by_polya$rank[by_polya$construct_id %in% with_polya]
+    ),
+    expected = min(
+      by_polya$rank[by_polya$construct_id %in% without_polya]
+    )
+  )
+})
+
+test_that("shifting weight toward a weakness lowers that score", {
+  # A candidate that is worst on upstream ORFs must not score better
+  # when upstream ORFs are weighted more heavily than everything
+  # else. Scores are comparable here because both weightings are
+  # normalised to sum to one over the same scaled features.
+  data(simulatedConstructs, package = "UTRunway")
+  worst <- simulatedConstructs$construct_id[
+    which.max(x = simulatedConstructs$n_upstream_orf)
+  ]
+
+  even <- rankCandidates(feature_table = all_features)
+  tilted <- rankCandidates(
+    feature_table = all_features,
+    weights = c(
+      n_upstream_orf = 10, n_upstream_aug = 1, kozak_score_scaled = 1,
+      n_polya_canonical = 1
+    )
+  )
+
+  score_of <- function(ranking, construct_id) {
+    ranking$ranking$score[
+      ranking$ranking$construct_id == construct_id
+    ]
+  }
+  expect_lt(
+    object = score_of(ranking = tilted, construct_id = worst),
+    expected = score_of(ranking = even, construct_id = worst)
+  )
+  # The same tilt must not drag down a candidate that has no
+  # upstream ORFs at all.
+  clean <- simulatedConstructs$construct_id[
+    simulatedConstructs$n_upstream_orf == 0 &
+      simulatedConstructs$has_strong_kozak
+  ][[1]]
+  expect_gt(
+    object = score_of(ranking = tilted, construct_id = clean),
+    expected = score_of(ranking = even, construct_id = clean)
+  )
 })
 
 test_that("weights change the ordering and are recorded with it", {
