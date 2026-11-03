@@ -137,17 +137,6 @@ plotConstructMap <- function(feature_table, construct_id) {
   )
 }
 
-#' Drop the x axis from a track that is not the bottom one
-#'
-#' @return A ggplot2 theme component.
-#' @noRd
-hideXAxis <- function() {
-  ggplot2::theme(
-    axis.text.x = ggplot2::element_blank(),
-    axis.title.x = ggplot2::element_blank(),
-    axis.ticks.x = ggplot2::element_blank()
-  )
-}
 
 #' Check a requested construct is in the table
 #'
