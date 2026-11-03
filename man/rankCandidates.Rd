@@ -10,12 +10,20 @@ rankCandidates(feature_table, weights = NULL)
 \item{feature_table}{A tidy feature table from
 \code{\link{profileConstruct}}, holding at least two candidates.}
 
-\item{weights}{Named numeric vector of weights over the feature
-names in the table above, or \code{NULL} for equal weighting
-across every scored feature. Weights must be non-negative and are
-rescaled to sum to one. A scored feature left out of a supplied
-vector is given no weight, so naming a few features is how to
-rank on just those.}
+\item{weights}{Named numeric vector of weights, or \code{NULL} for
+  equal weighting across every scored feature. Weights must be
+  non-negative and are rescaled to sum to one. A scored feature
+  left out of a supplied vector is given no weight, so naming a few
+  features is how to rank on just those.
+
+  Names may be region-qualified, as \code{"utr5.gc_content"}, or a
+  bare feature name. A bare name sets every region that feature is
+  scored in, which matters only for \code{gc_content}, the one
+  feature scored in both: \code{c(gc_content = 2)} weights it in
+  both untranslated regions, while \code{c(utr3.gc_content = 2)}
+  weights it in the 3' UTR alone. The returned weights are always
+  region-qualified, so the result records exactly which features
+  carried weight.}
 }
 \value{
 An object of class \code{"utrunway_ranking"}: a list with
@@ -181,6 +189,13 @@ rankCandidates(
   feature_table = features,
   weights = c(kozak_score_scaled = 2, n_upstream_orf = 1)
 )$ranking
+
+# GC content is scored in both UTRs, so it can be weighted in one
+# of them by naming the region.
+rankCandidates(
+  feature_table = features,
+  weights = c(utr3.gc_content = 1, n_are_pentamer = 1)
+)$weights
 
 }
 \references{

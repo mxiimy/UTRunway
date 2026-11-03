@@ -186,11 +186,17 @@ buildScoreMatrix <- function(feature_table) {
     )
   }
 
+  # Features are keyed by region as well as name, because a name
+  # alone is not unique: gc_content is scored in both untranslated
+  # regions, in opposite directions. A duplicated name would make
+  # weight lookup silently resolve to whichever came first.
+  available$key <- paste(available$region, available$feature, sep = ".")
+
   raw <- matrix(
     data = NA_real_,
     nrow = length(x = construct_ids),
     ncol = nrow(x = available),
-    dimnames = list(construct_ids, available$feature)
+    dimnames = list(construct_ids, available$key)
   )
 
   for (j in seq_len(length.out = nrow(x = available))) {
@@ -254,7 +260,7 @@ resolveWeights <- function(weights, features) {
   if (is.null(x = weights)) {
     return(stats::setNames(
       object = rep(x = 1, times = nrow(x = features)),
-      nm = features$feature
+      nm = features$key
     ))
   }
 
@@ -313,7 +319,9 @@ resolveWeights <- function(weights, features) {
          call. = FALSE)
   }
 
-  unknown <- setdiff(x = weight_names, y = features$feature)
+  unknown <- weight_names[
+    !weight_names %in% features$key & !weight_names %in% features$feature
+  ]
   if (length(x = unknown) > 0L) {
     stop(
       if (length(x = unknown) == 1L) "This feature cannot be weighted"
@@ -321,7 +329,8 @@ resolveWeights <- function(weights, features) {
       " because it is not scored or not present: ",
       paste(unknown, collapse = ", "),
       ". The features that can be weighted are: ",
-      paste(features$feature, collapse = ", "), ".",
+      paste(features$key, collapse = ", "),
+      ". A bare feature name may be used where it is unambiguous.",
       call. = FALSE
     )
   }
@@ -337,9 +346,37 @@ resolveWeights <- function(weights, features) {
   # carried weight, so either way the result stays traceable.
   resolved <- stats::setNames(
     object = rep(x = 0, times = nrow(x = features)),
-    nm = features$feature
+    nm = features$key
   )
-  resolved[weight_names] <- as.numeric(x = weights)
+  already_set <- character(length = 0L)
+
+  for (i in seq_along(along.with = weight_names)) {
+    supplied_name <- weight_names[[i]]
+    # A region-qualified key names one feature; a bare feature name
+    # names every region that feature is scored in, which for
+    # gc_content is both of them.
+    keys <- if (supplied_name %in% features$key) {
+      supplied_name
+    } else {
+      features$key[features$feature == supplied_name]
+    }
+
+    clash <- intersect(x = keys, y = already_set)
+    if (length(x = clash) > 0L) {
+      stop(
+        "`weights` sets ", paste(clash, collapse = ", "),
+        " more than once, because \"", supplied_name,
+        "\" overlaps a weight already given. Name each feature once, ",
+        "using the region-qualified form where a bare name covers ",
+        "more than one region.",
+        call. = FALSE
+      )
+    }
+
+    resolved[keys] <- as.numeric(x = weights[[i]])
+    already_set <- c(already_set, keys)
+  }
+
   resolved
 }
 
@@ -461,12 +498,20 @@ scoreFromMatrix <- function(normalised, weights) {
 #'
 #' @param feature_table A tidy feature table from
 #'   \code{\link{profileConstruct}}, holding at least two candidates.
-#' @param weights Named numeric vector of weights over the feature
-#'   names in the table above, or \code{NULL} for equal weighting
-#'   across every scored feature. Weights must be non-negative and are
-#'   rescaled to sum to one. A scored feature left out of a supplied
-#'   vector is given no weight, so naming a few features is how to
-#'   rank on just those.
+#' @param weights Named numeric vector of weights, or \code{NULL} for
+#'   equal weighting across every scored feature. Weights must be
+#'   non-negative and are rescaled to sum to one. A scored feature
+#'   left out of a supplied vector is given no weight, so naming a few
+#'   features is how to rank on just those.
+#'
+#'   Names may be region-qualified, as \code{"utr5.gc_content"}, or a
+#'   bare feature name. A bare name sets every region that feature is
+#'   scored in, which matters only for \code{gc_content}, the one
+#'   feature scored in both: \code{c(gc_content = 2)} weights it in
+#'   both untranslated regions, while \code{c(utr3.gc_content = 2)}
+#'   weights it in the 3' UTR alone. The returned weights are always
+#'   region-qualified, so the result records exactly which features
+#'   carried weight.
 #'
 #' @return An object of class \code{"utrunway_ranking"}: a list with
 #'   \describe{
@@ -543,6 +588,13 @@ scoreFromMatrix <- function(normalised, weights) {
 #'   weights = c(kozak_score_scaled = 2, n_upstream_orf = 1)
 #' )$ranking
 #'
+#' # GC content is scored in both UTRs, so it can be weighted in one
+#' # of them by naming the region.
+#' rankCandidates(
+#'   feature_table = features,
+#'   weights = c(utr3.gc_content = 1, n_are_pentamer = 1)
+#' )$weights
+#'
 #' @export
 rankCandidates <- function(feature_table, weights = NULL) {
   validateFeatureTable(feature_table = feature_table)
@@ -578,7 +630,7 @@ rankCandidates <- function(feature_table, weights = NULL) {
       x = prepared$features$direction, each = n_candidates
     ),
     weight = rep(
-      x = normalised_weights[prepared$features$feature],
+      x = normalised_weights[prepared$features$key],
       each = n_candidates
     ),
     stringsAsFactors = FALSE
@@ -594,7 +646,7 @@ rankCandidates <- function(feature_table, weights = NULL) {
       weights = normalised_weights,
       directions = stats::setNames(
         object = prepared$features$direction,
-        nm = prepared$features$feature
+        nm = prepared$features$key
       ),
       n_candidates = n_candidates
     ),
