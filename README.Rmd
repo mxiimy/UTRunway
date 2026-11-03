@@ -1,0 +1,358 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Edit the .Rmd, then knit. -->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%",
+  dpi = 110
+)
+session <- utils::sessionInfo()
+```
+
+# UTRunway
+
+**Profile and Rank Candidate mRNA Construct Designs**
+
+## Description
+
+`UTRunway` profiles and ranks candidate messenger RNA construct
+designs from sequence alone. The data it analyses is the nucleotide
+sequence of a designed construct, supplied as its three parts: the
+5' untranslated region (UTR), the coding sequence (CDS), and the
+3' UTR. From those sequences it measures the features known to govern
+how well a transcript is translated and how long it survives —
+upstream AUGs and upstream open reading frames, the Kozak context of
+the start codon, 5' terminal oligopyrimidine and G-quadruplex-prone
+motifs, a sequence-only structure proxy, AU-rich elements,
+polyadenylation signals and miRNA seed match sites — then ranks
+candidate designs against one another and draws each design as a
+single annotated map.
+
+The gap this fills is one of timing. Existing tools measure
+translation from sequencing experiments performed on transcripts that
+already exist, which means a construct must be synthesised before it
+can be assessed. `UTRunway` evaluates designs *before* synthesis,
+needing nothing but the sequence a researcher has already written
+down. The distinction is sharp against the closest neighbours:
+**ORFik** analyses translation but requires ribosome profiling data;
+**cubar** analyses and optimises codon usage and covers the coding
+sequence only; **RegVar** interprets 3' UTR variants positioned at
+genomic coordinates. None of them profiles a designed construct
+across all three of its regions, which is what choosing between
+candidate designs requires.
+
+`UTRunway` was developed using `r session$R.version$version.string`
+on `r session$platform`. **There is no Shiny implementation.**
+
+## Installation
+
+To install the development version:
+
+``` r
+install.packages("devtools")
+library("devtools")
+devtools::install_github("bcb410-2026/Melody_Mo", build_vignettes = TRUE)
+library("UTRunway")
+```
+
+**Note on naming.** The GitHub repository is named `Melody_Mo`, after
+the author, while the R package it contains is named `UTRunway`. The
+`install_github()` call therefore points at `bcb410-2026/Melody_Mo`,
+but the package you load afterwards is `UTRunway`. These are the same
+thing under two names, not two separate projects.
+
+To run the shinyApp: Under construction
+
+## Overview
+
+``` r
+ls("package:UTRunway")
+data(package = "UTRunway")
+browseVignettes("UTRunway")
+```
+
+`UTRunway` provides `r length(getNamespaceExports("UTRunway"))`
+user-accessible functions. They are listed here in the order a user
+calls them, which is the order the workflow runs in:
+
+| Step | Function | What it does |
+|---|---|---|
+| 1 | `readConstruct()` | Reads candidate constructs from a FASTA file or a data frame and validates them, reporting every problem at once and naming the construct at fault. |
+| 2 | `profileConstruct()` | Runs every feature function over every region of every candidate and returns one tidy feature table, the single input to everything downstream. |
+| 2a | `findUpstreamORFs()` | Locates every upstream AUG in a 5' UTR and reports its frame, whether it opens a uORF, and the strength of its own initiation context. |
+| 2b | `scoreKozak()` | Scores a start codon's context against a position weight matrix and classifies it as strong, adequate or weak. |
+| 2c | `estimateStructure()` | Reports sliding-window GC content and the longest complementary run per window, as a sequence-only structure proxy. |
+| 2d | `scanDecayElements()` | Finds polyadenylation signals, AU-rich element pentamers and miRNA seed match sites in a 3' UTR. |
+| 2e | `scanMotifs()` | Scans any region for the built-in TOP and G-quadruplex motifs, or for supplied motifs written with IUPAC ambiguity codes. |
+| 2f | `profileCDS()` | Reports coding sequence GC content, GC3, premature in-frame stop codons and out-of-frame ATGs, as context only. |
+| 3 | `plotConstructMap()` | Draws one construct on a single coordinate axis, with every feature class on its own labelled row. |
+| 4 | `plotRegionProfile()` | Draws composition along the whole construct, so a compositional problem can be seen where it sits. |
+| 5 | `plotCandidateComparison()` | Puts every candidate across every feature at once, with up to three brought forward by name. |
+| 6 | `rankCandidates()` | Ranks the candidates, returning the per-feature contribution behind every score and the weights that produced it. |
+| 7 | `plotScoreBreakdown()` | Shows what each candidate's score is made of, and how much of each region's available weight it gave away. |
+| 8 | `rankStability()` | Re-ranks under many perturbed weightings and reports each candidate's distribution of ranks. |
+| 9 | `plotCandidateRanking()` | Draws that distribution, so a tight interval reads as a robust conclusion and a wide one as a warning. |
+
+The package also ships `simulatedConstructs`, a dataset of twelve
+synthetic constructs with deliberately planted features, and
+`print()` methods for the ranking and stability objects.
+
+```{r overview, echo = FALSE, fig.width = 9.5, fig.height = 3.6, fig.alt = "Workflow diagram: candidate designs as FASTA or a data frame feed into readConstruct, then profileConstruct, which produces one tidy feature table. From that table two branches run: figures, comprising the construct map, region profile and candidate comparison; and ranking, comprising rankCandidates, the score breakdown, rankStability and the ranking plot."}
+library(ggplot2)
+
+boxes <- data.frame(
+  label = c(
+    "Candidate designs\nFASTA or data frame",
+    "readConstruct()\nvalidate",
+    "profileConstruct()\ntidy feature table",
+    "plotConstructMap()\nplotRegionProfile()\nplotCandidateComparison()",
+    "rankCandidates()\nplotScoreBreakdown()",
+    "rankStability()\nplotCandidateRanking()"
+  ),
+  x = c(1, 2.35, 3.8, 5.5, 5.5, 7.2),
+  y = c(2, 2, 2, 3.05, 0.95, 0.95),
+  width = c(1.05, 1.05, 1.25, 1.6, 1.4, 1.5),
+  height = c(0.78, 0.78, 0.78, 1.0, 0.78, 0.78),
+  kind = c("input", "step", "step", "figure", "score", "score"),
+  stringsAsFactors = FALSE
+)
+arrows <- data.frame(
+  x = c(1.55, 2.9, 4.45, 4.45, 6.22),
+  xend = c(1.8, 3.15, 4.68, 4.78, 6.43),
+  y = c(2, 2, 2.2, 1.8, 0.95),
+  yend = c(2, 2, 2.75, 1.1, 0.95)
+)
+fills <- c(
+  input = "#e4e3df", step = "#cde2fb", figure = "#d9ecd9",
+  score = "#fbe6cd"
+)
+
+ggplot(boxes) +
+  geom_segment(
+    data = arrows,
+    aes(x = x, xend = xend, y = y, yend = yend),
+    arrow = arrow(length = unit(0.16, "cm"), type = "closed"),
+    colour = "#52514e", linewidth = 0.45
+  ) +
+  geom_rect(
+    aes(
+      xmin = x - width / 2, xmax = x + width / 2,
+      ymin = y - height / 2, ymax = y + height / 2, fill = kind
+    ),
+    colour = "#898781", linewidth = 0.35
+  ) +
+  geom_text(
+    aes(x = x, y = y, label = label),
+    size = 2.85, colour = "#0b0b0b", lineheight = 1.15
+  ) +
+  annotate(
+    geom = "text", x = 5.5, y = 0.18,
+    label = "Scoring uses 5' UTR and 3' UTR features only; CDS is context",
+    size = 2.6, colour = "#52514e"
+  ) +
+  scale_fill_manual(values = fills, guide = "none") +
+  scale_x_continuous(limits = c(0.35, 8.1)) +
+  scale_y_continuous(limits = c(0, 3.75)) +
+  theme_void() +
+  theme(plot.background = element_rect(fill = "#fcfcfb", colour = NA))
+```
+
+The signature figure is the construct map. One candidate, every
+feature class on its own labelled row, all three regions on a shared
+axis:
+
+```{r map-example, fig.width = 9, fig.height = 4.6, fig.alt = "A construct map of CONSTRUCT_03 with three tracks: a region bar showing a 200 nucleotide 5 prime UTR, a 540 nucleotide CDS and a 400 nucleotide 3 prime UTR; an annotation track with labelled rows for upstream AUGs, uORF extents and the polyA signal; and a sliding-window GC profile."}
+library(UTRunway)
+data(simulatedConstructs, package = "UTRunway")
+
+features <- profileConstruct(constructs = simulatedConstructs[1:6, ])
+plotConstructMap(
+  feature_table = features, construct_id = "CONSTRUCT_03"
+)
+```
+
+For a tutorial that walks the whole workflow, from reading constructs
+to reading a stability plot, see the vignette:
+
+``` r
+browseVignettes("UTRunway")
+```
+
+### Scope
+
+Ranking uses 5' UTR and 3' UTR features **only**. Coding sequence
+features are profiled and may be plotted, but no coding sequence
+feature reaches any score: rows where `region` is `"cds"` are filtered
+out before anything is scored. The package's scope is untranslated
+region design, meaning the choice of UTRs to put around a coding
+sequence that has already been chosen. For codon usage analysis and
+codon optimisation, use **cubar**.
+
+## Contributions
+
+**Author: Melody Mo.**
+
+The author designed the package and made every decision it embodies.
+That includes its scope and the rule that ranking uses untranslated
+region features only; the selection of which sequence features to
+measure and the definition of each one; the scoring and ranking
+scheme, including the direction assigned to every feature and the
+decision that weights are supplied by the user and recorded with the
+result; and the design of every figure, including the decision to
+merge the three regions into a single annotated track in the
+construct map. The specifications, design revisions and corrections
+that produced this package are recorded in the project's git history.
+
+Generative AI was used to write the package. The model was
+**Anthropic Claude (Opus)**, accessed through the Claude Code
+command-line interface, over a series of sessions in which the author
+gave written specifications for each function and reviewed, corrected
+and directed the result. AI wrote the R implementation of each
+function, its `roxygen2` documentation, the unit tests, the data
+generation script and the vignette prose, working from those
+specifications. Every file in `R/`, `tests/` and `vignettes/` was
+produced this way and then verified as described below.
+
+Verification was not left to inspection. The package ships a dataset,
+`simulatedConstructs`, in which every sequence feature is deliberately
+planted and recorded, so each detection function is tested against a
+known answer rather than against its own output. The test suite
+contains `r "1,818"` assertions, and `R CMD check` passes with zero
+errors, zero warnings and zero notes. Several defects in
+AI-written code were found this way and corrected, including a motif
+counter that missed overlapping AUUUA pentamers because `gregexpr()`
+skips past each match, a weights vector whose names collided once GC
+content was scored in both untranslated regions, and a reference line
+in the score breakdown that collapsed twelve equal weights into one.
+
+The table below states, for each user-accessible function, what came
+from other packages and what came from generative AI.
+
+| Function | Code from other packages | Generative AI use, and how the output was verified |
+|---|---|---|
+| `readConstruct()` | None. FASTA parsing and validation are base R, so that error messages could name the offending construct rather than surfacing a parser's own message. | AI wrote the parser, the validation rules and the error text. Verified by tests that the shipped FASTA round-trips to the sequences in `simulatedConstructs`, and that each rule — alphabet, reading frame, start codon, stop codon, duplicate identifiers — produces its own message naming the construct. |
+| `profileConstruct()` | `Biostrings` for GC content via `letterFrequency()`. | AI wrote the aggregation and the feature naming scheme. Verified against the planted truth for all twelve bundled constructs, and by a test that pins the exact set of feature names per region so a rename fails loudly rather than silently emptying a plot. |
+| `findUpstreamORFs()` | None; base R string scanning. | AI wrote the AUG scan, frame arithmetic and uORF logic. Verified by tests that the upstream AUG and uORF counts match the planted truth for every construct, and by hand-built cases covering nested starts, a shared stop codon and a stop that straddles the UTR boundary. |
+| `scoreKozak()` | None. The position weight matrix is built in base R from the published consensus. | AI wrote the matrix, the log-odds scoring and the strength rule. Verified by tests that the planted strong contexts score the maximum and the planted weak ones score below zero, and that a sequence too short for the context window returns `NA` with a warning rather than an error. |
+| `estimateStructure()` | `Biostrings` for `DNAString`, `letterFrequency()` and `reverseComplement()`. | AI wrote the sliding window and the complementarity scan. The scan was verified against an independent brute-force implementation over 150 random sequences. AI also measured the flag's false-positive rate, which showed that the original five-nucleotide stem threshold flagged shuffled sequence more often than real sequence; the default was raised to eight on that evidence. |
+| `scanDecayElements()` | `Biostrings` for IUPAC-aware matching via `matchPattern()`; `IRanges` for the match coordinates. | AI wrote the element scan, the clustering rule and the default miRNA seed set. Verified by tests that AU-rich pentamer counts match the planted truth, that disrupted polyadenylation signals are reported as absent, and by recomputing each default seed as the reverse complement of nucleotides 2 to 8 of its mature miRNA. |
+| `scanMotifs()` | `Biostrings` for IUPAC matching; `IRanges` for coordinates. | AI wrote the two matching engines, regular expressions for the anchored and quantified built-in motifs and IUPAC matching for supplied ones. Verified by tests that planted TOP and G-quadruplex motifs are found in exactly the constructs carrying them, that a supplied ambiguous motif matches both forms, and that a regular expression supplied as a motif is rejected rather than silently failing to match. |
+| `profileCDS()` | `Biostrings` for GC content. | AI wrote the GC3, premature stop and out-of-frame AUG calculations. Verified against a short coding sequence checked by hand, and against an independent GC count for every construct in the dataset. |
+| `rankCandidates()` | `stats` for `setNames()`. | AI wrote the normalisation, the weighting and the direction table, from directions the author specified. Verified by tests that no coding sequence feature reaches a score — altering every CDS value leaves scores identical — that contributions sum exactly to each score, and that weighting a feature moves candidates the way its documented direction says. |
+| `rankStability()` | `stats` for `rgamma()` and `median()`. | AI wrote the Dirichlet perturbation and the rank summary. Verified by tests that every replicate is a valid permutation, that results are reproducible under `set.seed()`, and that the concentration parameter widens the spread as documented. |
+| `plotConstructMap()` | `ggplot2` for the figure; `patchwork` to assemble the tracks. | AI wrote the plotting code and the shared palette. The palette was not chosen by eye: AI computed the pairwise separation of every colour under simulated protanopia and deuteranopia, which showed that the six feature colours cannot be told apart when drawn together, and the figure was restructured to give each feature class its own labelled row so that no reading depends on colour. Verified by tests that read the values actually drawn out of the built plot. |
+| `plotRegionProfile()` | `ggplot2`. | AI wrote the figure. Verified by a test comparing the drawn GC values against the feature table they came from, and by rendering the figure and inspecting it. |
+| `plotCandidateComparison()` | `ggplot2`. | AI wrote the figure, including the limit of three highlighted candidates, which follows from the colour measurement above. Verified by tests that the scaled values span zero to one and that highlight colours appear only when candidates are named. |
+| `plotScoreBreakdown()` | `ggplot2`. | AI wrote the figure. Rendering it revealed a defect the test suite had not: the reference rule was computed as `sum(unique(weights))`, which with equal weighting collapsed twelve identical values into one. Corrected, and now covered by a test that reads the rule's position out of the built plot. |
+| `plotCandidateRanking()` | `ggplot2`. | AI wrote the figure. Verified by a test that the drawn intervals match the figures in the stability object they came from. |
+
+Package development followed the structure described by Wickham and
+Bryan (2023). The simulated dataset was generated by
+`data-raw/makeSimulatedConstructs.R`, which is included in the
+repository so that every planted feature can be inspected and the
+dataset regenerated exactly.
+
+## References
+
+Kozak, M. (1986). Point mutations define a sequence flanking the AUG
+initiator codon that modulates translation by eukaryotic ribosomes.
+*Cell*, 44(2), 283–292.
+<https://doi.org/10.1016/0092-8674(86)90762-2>
+
+Lawrence, M., Huber, W., Pagès, H., Aboyoun, P., Carlson, M.,
+Gentleman, R., Morgan, M., & Carey, V. (2013). Software for computing
+and annotating genomic ranges. *PLoS Computational Biology*, 9(8),
+e1003118. <https://doi.org/10.1371/journal.pcbi.1003118>
+
+Liu, M., Zi, B., Zhang, H., & Zhang, H. (2025). cubar: A versatile
+package for codon usage bias analysis in R. *Genetics*, iyaf191.
+<https://doi.org/10.1093/genetics/iyaf191>
+
+Pagès, H., Aboyoun, P., Gentleman, R., & DebRoy, S. (2026).
+*Biostrings: Efficient manipulation of biological strings* (R package
+version 2.80.2). Bioconductor.
+<https://doi.org/10.18129/B9.bioc.Biostrings>
+
+Pedersen, T. L. (2025). *patchwork: The composer of plots* (R package
+version 1.3.2). <https://doi.org/10.32614/CRAN.package.patchwork>
+
+R Core Team. (2026). *R: A language and environment for statistical
+computing*. R Foundation for Statistical Computing, Vienna, Austria.
+<https://www.R-project.org/>
+
+Romo, L., et al. (2024). *RegVar*. [Full citation to be completed by
+the author: journal, volume, pages and DOI.]
+
+Sample, P. J., Wang, B., Reid, D. W., Presnyak, V., McFadyen, I. J.,
+Morris, D. R., & Seelig, G. (2019). Human 5' UTR design and variant
+effect prediction from a massively parallel translation assay.
+*Nature Biotechnology*, 37(7), 803–809.
+<https://doi.org/10.1038/s41587-019-0164-5>
+
+Tjeldnes, H., Labun, K., Torres Cleuren, Y., Chyżyńska, K., Świrski,
+M., & Valen, E. (2021). ORFik: A comprehensive R toolkit for the
+analysis of translation. *BMC Bioinformatics*, 22, 336.
+<https://doi.org/10.1186/s12859-021-04254-w>
+
+Wickham, H. (2016). *ggplot2: Elegant graphics for data analysis*.
+Springer-Verlag New York. <https://ggplot2.tidyverse.org>
+
+Wickham, H., & Bryan, J. (2023). *R packages* (2nd ed.). O'Reilly
+Media. <https://r-pkgs.org/>
+
+Xie, Y. (2026). *knitr: A general-purpose package for dynamic report
+generation in R* (R package version 1.52).
+<https://yihui.org/knitr/>
+
+## Acknowledgements
+
+This package was developed as part of an assessment for 2026 BCB410H:
+Applied Bioinformatics course at the University of Toronto, Toronto,
+CANADA. `UTRunway` welcomes issues, enhancement requests, and other
+contributions. To submit an issue, use the GitHub issues.
+
+## Scope and Limitations
+
+**The bundled data is simulated.** `simulatedConstructs` was drawn
+from a uniform random base composition and then had motifs spliced
+into it under a fixed random seed. Its sequences are not derived from
+any real transcript, and no measured expression, translation or
+stability outcome is attached to any of them.
+
+That bounds what this package has been shown to do. The bundled data
+demonstrates that the detection functions recover the features
+planted in a sequence: that `findUpstreamORFs()` finds exactly the
+upstream AUGs placed in a 5' UTR, that `scanDecayElements()` counts
+the AU-rich pentamers put there, that a disrupted polyadenylation
+signal is reported as absent. Those are real tests with known
+answers, and the test suite checks them for every construct.
+
+**It does not demonstrate that the scores predict anything.** Nothing
+in this package has been compared against measured translation
+efficiency, measured transcript stability, or tissue targeting. The
+ranking is a weighted sum of normalised sequence features, with
+directions drawn from published sequence determinants and weights
+chosen by the user. It is a design heuristic for narrowing a
+candidate list, not a model of outcome, and `UTRunway` makes no claim
+that a higher-ranked construct will perform better experimentally.
+
+That claim is testable, and the route to testing it is a published
+dataset pairing sequences with measured outcomes. One suitable source
+is the massively parallel reporter assay of Sample et al. (2019),
+which measured ribosome loading across a large library of human
+5' UTRs. An evaluation would profile those UTRs with
+`profileConstruct()`, score them with `rankCandidates()` under a fixed
+weighting, and correlate the scores against the measured ribosome
+loading on sequences held out of any tuning, reporting the
+correlation and its confidence interval. A weighting fitted on a
+training portion could then be compared against the equal weighting
+used by default, to test whether the chosen directions carry real
+signal. Comparable 3' UTR datasets measuring transcript stability
+would test the other half of the score. **This validation has not
+been performed.**
