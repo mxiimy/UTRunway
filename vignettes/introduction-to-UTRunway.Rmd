@@ -1,0 +1,403 @@
+---
+title: "Introduction to UTRunway"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to UTRunway}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7.2,
+  fig.height = 4.4,
+  dpi = 96,
+  out.width = "100%"
+)
+```
+
+```{r library}
+library(UTRunway)
+```
+
+## The problem
+
+You have designed several candidate mRNA constructs. Each is the same
+protein-coding sequence wrapped in a different pair of untranslated
+regions, and you can afford to synthesise and test only a few of them.
+Which ones?
+
+The untranslated regions are where much of that decision sits. A 5' UTR
+carrying an upstream AUG can divert scanning ribosomes away from the
+real start codon. A 3' UTR carrying AU-rich elements recruits the
+machinery that shortens a transcript's life. A missing polyadenylation
+signal is a problem on its own. None of this requires sequencing data
+to see: it is in the sequence you already have.
+
+UTRunway reads candidate constructs, measures those features, draws
+each design as a map, and ranks the candidates against one another so
+that the shortlist is a decision you can explain rather than a hunch.
+
+This vignette walks the whole workflow on the package's bundled data.
+Read the **Scope and interpretation** section at the end before you
+trust any number here: it says plainly what this package can and
+cannot tell you.
+
+## Reading constructs
+
+A construct is three sequences: a 5' UTR, a coding sequence, and a
+3' UTR. `readConstruct()` takes them from a data frame or from a FASTA
+file, checks them, and returns a validated object everything else in
+the package can rely on.
+
+The package ships an example FASTA with one record per region:
+
+```{r fasta-head}
+fasta_path <- system.file(
+  "extdata", "exampleConstructs.fasta",
+  package = "UTRunway"
+)
+cat(head(x = readLines(con = fasta_path), n = 4), sep = "\n")
+```
+
+```{r read-fasta}
+from_fasta <- readConstruct(x = fasta_path)
+from_fasta[, c("construct_id", "has_ambiguous")]
+nchar(x = from_fasta$utr5)
+```
+
+Reading from a data frame works the same way. The bundled
+`simulatedConstructs` dataset holds twelve candidates, so we will use
+six of them from here on:
+
+```{r read-frame}
+data(simulatedConstructs, package = "UTRunway")
+candidates <- readConstruct(x = simulatedConstructs[1:6, ])
+class(x = candidates)
+```
+
+Validation is strict and the errors name the construct at fault. All
+problems are reported together, so a file with several mistakes takes
+one run to diagnose rather than one run per mistake:
+
+```{r validation-error, error = TRUE}
+readConstruct(
+  x = data.frame(
+    construct_id = c("bad_frame", "no_start"),
+    utr5 = c("GCCACC", "GCCACC"),
+    cds = c("ATGGCCTA", "GGGGCCTAA"),
+    utr3 = c("AATAAA", "AATAAA")
+  )
+)
+```
+
+## Profiling
+
+`profileConstruct()` runs every feature function over every region of
+every candidate and returns one tidy table. That table is the single
+input to every plotting function and to the ranking.
+
+```{r profile}
+features <- profileConstruct(constructs = candidates)
+dim(x = features)
+head(x = features, n = 6)
+```
+
+Each row is one feature value for one construct. Rows with a
+`position` are individual occurrences, such as a single upstream AUG;
+rows without one are summaries for the region.
+
+```{r summaries}
+subset(
+  x = features,
+  subset = construct_id == "CONSTRUCT_03" &
+    region == "utr5" & is.na(position),
+  select = c(feature, value)
+)
+```
+
+The `region` column is what keeps the coding sequence out of scoring
+later. Everything that may contribute to a score is the rows where
+`region` is not `"cds"`:
+
+```{r regions}
+table(features$region)
+```
+
+## Looking at one construct
+
+The feature table is complete but hard to read. `plotConstructMap()`
+draws one candidate on a single coordinate axis, with each class of
+feature on its own labelled row.
+
+```{r map, fig.height = 5.2}
+plotConstructMap(
+  feature_table = features, construct_id = "CONSTRUCT_03"
+)
+```
+
+Reading the figure: CONSTRUCT_03 carries three upstream AUGs in its
+5' UTR, two of which open upstream reading frames that terminate
+before the coding sequence begins. Those compete with the real start
+codon. The polyadenylation signal is present and sits near the 3' end,
+where it belongs. The lower track is the structure proxy, discussed
+below.
+
+Compare that with a candidate whose problem is at the other end:
+
+```{r map-12, fig.height = 5.2}
+all_features <- profileConstruct(constructs = simulatedConstructs)
+plotConstructMap(
+  feature_table = all_features, construct_id = "CONSTRUCT_12"
+)
+```
+
+CONSTRUCT_12 has a clean 5' UTR, so no rows appear for it, but its
+3' UTR carries three clusters of AU-rich element pentamers and a miRNA
+seed match site. Two candidates, two quite different reasons to worry.
+
+Coding sequence features are left out by default, because nothing in
+the coding sequence is ever scored. Ask for them when you want to
+check the coding sequence itself:
+
+```{r map-cds, fig.height = 5.6}
+plotConstructMap(
+  feature_table = features,
+  construct_id = "CONSTRUCT_03",
+  show_cds_context = TRUE
+)
+```
+
+The two added rows are grey and named as context. CONSTRUCT_03 turns
+out to carry a premature stop codon. Nothing scores it, and it would
+still end the construct's usefulness, which is why the option exists.
+
+## Comparing candidates
+
+`plotCandidateComparison()` puts every candidate across every feature
+at once. Each feature is scaled so that 0 is the lowest value in the
+set and 1 the highest.
+
+```{r comparison, fig.height = 4.8}
+plotCandidateComparison(
+  feature_table = features,
+  highlight = c("CONSTRUCT_03", "CONSTRUCT_06")
+)
+```
+
+A high point is the largest value **among these candidates**, which is
+good for a canonical polyadenylation signal and bad for upstream AUGs.
+Direction belongs to scoring, not to this figure. Candidates are grey
+unless named in `highlight`, which takes at most three.
+
+## Ranking
+
+`rankCandidates()` scales each feature across the candidates, orients
+it so that higher is always better, and takes a weighted mean.
+
+```{r rank}
+ranking <- rankCandidates(feature_table = features)
+ranking
+```
+
+The object carries more than the order. `contributions` holds the part
+each feature played in each score, which is what makes a ranking
+explainable:
+
+```{r contributions}
+leader <- ranking$ranking$construct_id[[1]]
+head(
+  x = subset(
+    x = ranking$contributions,
+    subset = construct_id == leader,
+    select = c(feature, value, normalised, contribution)
+  ),
+  n = 5
+)
+```
+
+`plotScoreBreakdown()` shows all of that at once:
+
+```{r breakdown, fig.height = 4.6}
+plotScoreBreakdown(ranking = ranking)
+```
+
+Each bar is a candidate's score split into the features behind it. The
+dashed rule is the most that region could contribute, so the gap
+between a bar and the rule is what the candidate gave away.
+CONSTRUCT_03 gives away almost the whole 5' UTR contribution, which is
+the three upstream AUGs showing up as a number.
+
+Weights are yours to choose, and they are recorded in the result so a
+ranking can always be traced back to them:
+
+```{r weights}
+round(x = ranking$weights, digits = 3)
+```
+
+Naming a few features ranks on those alone:
+
+```{r custom-weights}
+rankCandidates(
+  feature_table = features,
+  weights = c(n_upstream_orf = 2, kozak_score_scaled = 1)
+)$ranking
+```
+
+## Checking robustness
+
+A ranking under weights you chose is worth only as much as its
+stability under weights you might have chosen instead.
+`rankStability()` re-ranks under many perturbed weightings and
+`plotCandidateRanking()` draws the spread.
+
+```{r stability, fig.height = 4.2}
+set.seed(seed = 2024)
+stability <- rankStability(feature_table = features, n = 200)
+plotCandidateRanking(stability = stability)
+```
+
+Read the bars before the order. A candidate holding first place across
+nearly every weighting is a genuinely strong candidate within this
+set. A candidate whose bar spans half the field has no settled
+position, and calling it third-best would be reading precision that is
+not there.
+
+```{r stability-summary}
+stability$summary
+```
+
+Exploring the weight space more widely widens the bars, which is the
+honest picture of how much the order depends on a choice nobody
+measured:
+
+```{r stability-wide, fig.height = 4.2}
+set.seed(seed = 2024)
+plotCandidateRanking(
+  stability = rankStability(
+    feature_table = features, n = 200, concentration = 2
+  )
+)
+```
+
+## Scope and interpretation
+
+Read this section before using any number this package produces.
+
+### Coding sequence features are context, never scored
+
+UTRunway ranks on 5' UTR and 3' UTR features alone. `profileCDS()`
+reports GC content, GC3, premature in-frame stop codons and
+out-of-frame ATGs, and `plotConstructMap()` can draw them, but no
+coding sequence feature reaches any score. The scope of this package
+is untranslated region design: choosing the UTRs to put around a
+coding sequence that has already been chosen.
+
+There is deliberately no codon adaptation index here, no tRNA
+adaptation index, and no codon usage table. For codon usage analysis
+and codon optimisation, use the **cubar** package on CRAN
+(<https://CRAN.R-project.org/package=cubar>), described in Liu, M.,
+Zi, B., Zhang, H. and Zhang, H. (2025), "cubar: a versatile package
+for codon usage bias analysis in R", *Genetics*, iyaf191.
+
+### The structure measure is a proxy, not folding
+
+`estimateStructure()` reports sliding-window GC content and the
+longest pair of reverse-complementary runs that could pair within each
+window. That is all it does. There is no nearest-neighbour energy
+model, no partition function, no minimum free energy and no base pair
+probability anywhere in the package.
+
+What follows: interactions spanning more than one window are invisible
+however stable they would be, a stem of A-U pairs counts the same as
+one of G-C pairs, and a possible pairing is not a pairing that forms.
+Use it to compare candidates against one another on the same settings.
+If you need a structure prediction, fold the sequence with a
+thermodynamic folding program, which is outside this package by
+design, since UTRunway depends on nothing beyond R.
+
+### The bundled data is simulated
+
+**`simulatedConstructs` is synthetic.** Its sequences were drawn from
+a uniform random base composition and then had motifs spliced into
+them under a fixed random seed. They are not derived from any real
+transcript, and no measured expression, translation or stability
+outcome is attached to any of them.
+
+That has a hard consequence for what this vignette demonstrates. The
+bundled data can show that the detection functions find the features
+that were planted: that `findUpstreamORFs()` recovers exactly the
+upstream AUGs put into a sequence, that `scanDecayElements()` counts
+the AU-rich pentamers that were placed there, that a disrupted
+polyadenylation signal is reported as absent. Those are real tests
+with known answers, and the package's test suite checks them.
+
+**It cannot show that the scores predict anything.** Nothing in this
+package has been compared against measured translation efficiency,
+measured transcript stability, or tissue targeting. The ranking is a
+weighted sum of normalised sequence features, with directions drawn
+from published sequence determinants and weights chosen by the user.
+That is a design heuristic for narrowing a candidate list. It is not a
+model of outcome, and **UTRunway makes no claim that a higher-ranked
+construct will perform better experimentally.**
+
+### How such a claim could be evaluated
+
+The claim is testable, and the way to test it is with a published
+dataset that pairs sequences with measured outcomes.
+
+One suitable dataset is the massively parallel reporter assay of
+Sample et al. (2019), which measured ribosome loading across a large
+library of human 5' UTRs: Sample, P. J., Wang, B., Reid, D. W.,
+Presnyak, V., McFadyen, I. J., Morris, D. R. and Seelig, G. (2019),
+"Human 5' UTR design and variant effect prediction from a massively
+parallel translation assay", *Nature Biotechnology* 37, 803-809.
+
+An evaluation would profile those UTRs with `profileConstruct()`,
+score them with `rankCandidates()` under a fixed weighting, and
+correlate the scores against the measured ribosome loading on
+sequences held out of any tuning, reporting the correlation and its
+confidence interval. A weighting fitted on the training portion could
+be compared against the equal weighting this package defaults to, to
+see whether the chosen directions carry real signal. Comparable 3' UTR
+datasets measuring transcript stability would test the other half of
+the score.
+
+**This validation has not been performed.** Until it is, treat the
+ranking as a way of making sequence features explicit and comparable,
+not as a prediction.
+
+## Where to go next
+
+```{r functions, echo = FALSE}
+data.frame(
+  `Function` = c(
+    "readConstruct", "profileConstruct", "findUpstreamORFs",
+    "scoreKozak", "estimateStructure", "scanDecayElements",
+    "scanMotifs", "profileCDS", "rankCandidates", "rankStability"
+  ),
+  `Purpose` = c(
+    "Read and validate candidate constructs",
+    "Profile every construct into one tidy table",
+    "Locate upstream AUGs and upstream ORFs",
+    "Score a start codon's initiation context",
+    "Sliding-window GC and a complementarity proxy",
+    "PolyA signals, AU-rich elements, miRNA seed sites",
+    "Scan for built-in or supplied IUPAC motifs",
+    "Coding sequence context, never scored",
+    "Rank candidates with per-feature contributions",
+    "How far the ranking moves with the weights"
+  ),
+  check.names = FALSE
+)
+```
+
+Every function's help page gives its references and its limitations.
+`?simulatedConstructs` documents what was planted in the bundled data
+and how it was generated.
+
+```{r session}
+sessionInfo()
+```

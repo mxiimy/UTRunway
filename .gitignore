@@ -5,3 +5,5 @@
 *.Rcheck/
 UTRunway_*.tar.gz
 inst/doc
+/doc/
+/Meta/
