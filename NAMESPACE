@@ -3,6 +3,8 @@
 export(estimateStructure)
 export(findUpstreamORFs)
 export(profileCDS)
+export(profileConstruct)
+export(readConstruct)
 export(scanDecayElements)
 export(scanMotifs)
 export(scoreKozak)
