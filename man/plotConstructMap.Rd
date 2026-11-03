@@ -2,9 +2,9 @@
 % Please edit documentation in R/plotConstructMap.R
 \name{plotConstructMap}
 \alias{plotConstructMap}
-\title{Draw One Construct as an Annotated Multi-Track Map}
+\title{Draw One Construct as an Annotated Map}
 \usage{
-plotConstructMap(feature_table, construct_id)
+plotConstructMap(feature_table, construct_id, show_cds_context = TRUE)
 }
 \arguments{
 \item{feature_table}{A tidy feature table from
@@ -12,48 +12,67 @@ plotConstructMap(feature_table, construct_id)
 
 \item{construct_id}{Character string of length one naming the
 construct to draw. It must appear in \code{feature_table}.}
+
+\item{show_cds_context}{Single logical. Whether to give coding
+sequence features their own rows in the annotation track. They
+are context either way and are never scored; this only decides
+whether they are drawn. Defaults to \code{TRUE}, because a
+premature stop codon is worth seeing even though it is not
+scored.}
 }
 \value{
 A \pkg{patchwork} object, which prints as the assembled
-  figure and can be customised further like any
-  \pkg{ggplot2} object, for example by adding a theme or a title.
-  The individual tracks are accessible by position, so
-  \code{map[[2]]} is the 5' UTR track.
+  figure and can be customised further like any \pkg{ggplot2}
+  object. The individual tracks are accessible by position, so
+  \code{map[[2]]} is the annotation track.
 }
 \description{
-Draws a single candidate construct as stacked tracks on one shared
-coordinate axis: the three regions and their boundaries, the 5' UTR
-features that govern initiation, the sequence-only structure
-profile, the coding sequence as context, and the 3' UTR elements
-that govern stability. It is the package's signature figure, and
-the one place a whole design can be read at once.
+Draws a single candidate construct on one shared coordinate axis:
+the three regions and their boundaries, every annotated feature in
+one track, and the sequence-only structure profile beneath. It is
+the package's signature figure, and the one place a whole design
+can be read at once.
 }
 \details{
 Positions in the feature table are relative to each region, so the
-regions are laid end to end here, using the region lengths that are
-themselves rows of the table. The x axis is therefore the position
-in the whole construct, and every track shares it.
+regions are laid end to end here, using the region lengths that
+are themselves rows of the table. The x axis is therefore the
+position in the whole construct, and every track shares it.
+
+Features from all three regions share a single annotation track,
+so a 5' UTR element and a 3' UTR element can be read against one
+ruler. A feature that can occur anywhere, such as a
+G-quadruplex-prone run, appears on one row wherever it falls
+rather than being split between regions.
 }
-\section{The coding sequence track is context, not score}{
+\section{Every feature class has its own labelled row}{
 
-The coding sequence track is deliberately drawn in grey while the
-untranslated regions carry colour, and the figure's caption says
-so. UTRunway scores and ranks on untranslated region features
-alone, so nothing in the CDS track contributes to a score. Its
-GC3 profile and its cryptic codons are there to let a design be
-read as a whole, not to be weighed. See \code{\link{profileCDS}}
-and \code{\link{rankCandidates}}.
+Within the annotation track, each class of feature occupies its
+own row, named on the axis. Identity therefore rests on where a
+mark sits and what its row is called, with colour and shape
+reinforcing. Nothing in the figure has to be read by telling two
+colours apart.
+
+That is a requirement, not a nicety. The six feature colours were
+measured pairwise under simulated protanopia and deuteranopia, and
+while any three of them separate well, all six together do not:
+the closest pair measures 3.2 against a target of 8. Putting every
+feature in one track is what makes the labelled rows necessary.
+
+The strength of each upstream AUG's own initiation context is part
+of its row name rather than a shade of one colour, for the same
+reason.
 }
 
-\section{Colour never carries meaning alone}{
+\section{The coding sequence appears as context}{
 
-Each feature class has its own plotting symbol and its own track as
-well as its own colour, and the legend names every class. This is
-not decoration. The six feature colours were checked pairwise under
-simulated protanopia and deuteranopia, and while the three used in
-any one track separate well, the full six do not separate from one
-another when seen together. Shape, track and label are what make
-the figure readable for every reader; colour reinforces them.
+Coding sequence features get rows like any other, but they are
+drawn in grey, their rows are named as context, and the caption
+says they take no part in any score. UTRunway ranks on
+untranslated region features alone. Pass
+\code{show_cds_context = FALSE} to leave them out altogether; the
+region bar still shows where the coding sequence begins and ends.
+See \code{\link{profileCDS}} and \code{\link{rankCandidates}}.
 }
 
 \section{The structure track is a proxy}{
@@ -78,9 +97,11 @@ map <- plotConstructMap(
 )
 map
 
-# The result is a patchwork object, so it can be customised.
-map + patchwork::plot_annotation(
-  title = "Candidate CONSTRUCT_03"
+# Untranslated region features only.
+plotConstructMap(
+  feature_table = features,
+  construct_id = "CONSTRUCT_03",
+  show_cds_context = FALSE
 )
 
 # CONSTRUCT_12 carries nine AU-rich element pentamers instead.

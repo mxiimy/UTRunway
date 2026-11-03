@@ -1,36 +1,49 @@
-#' Draw One Construct as an Annotated Multi-Track Map
+#' Draw One Construct as an Annotated Map
 #'
 #' @description
-#' Draws a single candidate construct as stacked tracks on one shared
-#' coordinate axis: the three regions and their boundaries, the 5' UTR
-#' features that govern initiation, the sequence-only structure
-#' profile, the coding sequence as context, and the 3' UTR elements
-#' that govern stability. It is the package's signature figure, and
-#' the one place a whole design can be read at once.
+#' Draws a single candidate construct on one shared coordinate axis:
+#' the three regions and their boundaries, every annotated feature in
+#' one track, and the sequence-only structure profile beneath. It is
+#' the package's signature figure, and the one place a whole design
+#' can be read at once.
 #'
 #' @details
 #' Positions in the feature table are relative to each region, so the
-#' regions are laid end to end here, using the region lengths that are
-#' themselves rows of the table. The x axis is therefore the position
-#' in the whole construct, and every track shares it.
+#' regions are laid end to end here, using the region lengths that
+#' are themselves rows of the table. The x axis is therefore the
+#' position in the whole construct, and every track shares it.
 #'
-#' @section The coding sequence track is context, not score:
-#' The coding sequence track is deliberately drawn in grey while the
-#' untranslated regions carry colour, and the figure's caption says
-#' so. UTRunway scores and ranks on untranslated region features
-#' alone, so nothing in the CDS track contributes to a score. Its
-#' GC3 profile and its cryptic codons are there to let a design be
-#' read as a whole, not to be weighed. See \code{\link{profileCDS}}
-#' and \code{\link{rankCandidates}}.
+#' Features from all three regions share a single annotation track,
+#' so a 5' UTR element and a 3' UTR element can be read against one
+#' ruler. A feature that can occur anywhere, such as a
+#' G-quadruplex-prone run, appears on one row wherever it falls
+#' rather than being split between regions.
 #'
-#' @section Colour never carries meaning alone:
-#' Each feature class has its own plotting symbol and its own track as
-#' well as its own colour, and the legend names every class. This is
-#' not decoration. The six feature colours were checked pairwise under
-#' simulated protanopia and deuteranopia, and while the three used in
-#' any one track separate well, the full six do not separate from one
-#' another when seen together. Shape, track and label are what make
-#' the figure readable for every reader; colour reinforces them.
+#' @section Every feature class has its own labelled row:
+#' Within the annotation track, each class of feature occupies its
+#' own row, named on the axis. Identity therefore rests on where a
+#' mark sits and what its row is called, with colour and shape
+#' reinforcing. Nothing in the figure has to be read by telling two
+#' colours apart.
+#'
+#' That is a requirement, not a nicety. The six feature colours were
+#' measured pairwise under simulated protanopia and deuteranopia, and
+#' while any three of them separate well, all six together do not:
+#' the closest pair measures 3.2 against a target of 8. Putting every
+#' feature in one track is what makes the labelled rows necessary.
+#'
+#' The strength of each upstream AUG's own initiation context is part
+#' of its row name rather than a shade of one colour, for the same
+#' reason.
+#'
+#' @section The coding sequence appears as context:
+#' Coding sequence features get rows like any other, but they are
+#' drawn in grey, their rows are named as context, and the caption
+#' says they take no part in any score. UTRunway ranks on
+#' untranslated region features alone. Pass
+#' \code{show_cds_context = FALSE} to leave them out altogether; the
+#' region bar still shows where the coding sequence begins and ends.
+#' See \code{\link{profileCDS}} and \code{\link{rankCandidates}}.
 #'
 #' @section The structure track is a proxy:
 #' The structure track shows sliding-window GC content with the
@@ -43,12 +56,17 @@
 #'   \code{\link{profileConstruct}}.
 #' @param construct_id Character string of length one naming the
 #'   construct to draw. It must appear in \code{feature_table}.
+#' @param show_cds_context Single logical. Whether to give coding
+#'   sequence features their own rows in the annotation track. They
+#'   are context either way and are never scored; this only decides
+#'   whether they are drawn. Defaults to \code{TRUE}, because a
+#'   premature stop codon is worth seeing even though it is not
+#'   scored.
 #'
 #' @return A \pkg{patchwork} object, which prints as the assembled
-#'   figure and can be customised further like any
-#'   \pkg{ggplot2} object, for example by adding a theme or a title.
-#'   The individual tracks are accessible by position, so
-#'   \code{map[[2]]} is the 5' UTR track.
+#'   figure and can be customised further like any \pkg{ggplot2}
+#'   object. The individual tracks are accessible by position, so
+#'   \code{map[[2]]} is the annotation track.
 #'
 #' @references
 #' Hinnebusch, A. G., Ivanov, I. P. and Sonenberg, N. (2016).
@@ -73,9 +91,11 @@
 #' )
 #' map
 #'
-#' # The result is a patchwork object, so it can be customised.
-#' map + patchwork::plot_annotation(
-#'   title = "Candidate CONSTRUCT_03"
+#' # Untranslated region features only.
+#' plotConstructMap(
+#'   feature_table = features,
+#'   construct_id = "CONSTRUCT_03",
+#'   show_cds_context = FALSE
 #' )
 #'
 #' # CONSTRUCT_12 carries nine AU-rich element pentamers instead.
@@ -85,11 +105,20 @@
 #'
 #' @importFrom ggplot2 .data
 #' @export
-plotConstructMap <- function(feature_table, construct_id) {
+plotConstructMap <- function(feature_table, construct_id,
+                             show_cds_context = TRUE) {
   validateFeatureTable(feature_table = feature_table)
   construct_id <- validateConstructChoice(
     feature_table = feature_table, construct_id = construct_id
   )
+  if (!is.logical(x = show_cds_context) ||
+        length(x = show_cds_context) != 1L ||
+        is.na(x = show_cds_context)) {
+    stop(
+      "`show_cds_context` must be TRUE or FALSE.",
+      call. = FALSE
+    )
+  }
 
   rows <- feature_table[
     feature_table$construct_id == construct_id, , drop = FALSE
@@ -97,46 +126,50 @@ plotConstructMap <- function(feature_table, construct_id) {
   offsets <- regionOffsets(rows = rows)
 
   region_track <- buildRegionTrack(offsets = offsets)
-  utr5_track <- buildUtr5Track(rows = rows, offsets = offsets)
+  annotation_track <- buildAnnotationTrack(
+    rows = rows, offsets = offsets,
+    show_cds_context = show_cds_context
+  )
   structure_track <- buildStructureTrack(
     rows = rows, offsets = offsets
   )
-  cds_track <- buildCdsTrack(rows = rows, offsets = offsets)
-  utr3_track <- buildUtr3Track(rows = rows, offsets = offsets)
 
   # Only the bottom track carries the axis: the tracks share one
-  # coordinate system, so repeating its labels five times would add
-  # ink without adding information.
-  upper_tracks <- lapply(
-    X = list(region_track, utr5_track, structure_track, cds_track),
-    FUN = function(track) track + hideXAxis()
-  )
-
+  # coordinate system, so repeating its labels would add ink without
+  # adding information.
   assembled <- patchwork::wrap_plots(
-    c(upper_tracks, list(utr3_track)),
+    region_track + hideXAxis(),
+    annotation_track + hideXAxis(),
+    structure_track,
     ncol = 1L,
-    heights = c(0.4, 1.1, 1.0, 0.8, 1.2)
-  ) +
-    patchwork::plot_layout(guides = "collect")
+    heights = c(0.32, 1.5, 1)
+  )
 
   assembled + patchwork::plot_annotation(
     title = paste("Construct map:", construct_id),
     subtitle = paste(
-      "Tracks share one coordinate axis, shown at the foot.",
-      "Coloured tracks are scored; the CDS track is context."
+      "All three regions on one axis, shown at the foot.",
+      "Each feature class has its own labelled row."
     ),
     caption = paste(
-      "The CDS track is grey because coding sequence features are",
-      "reported as context and take no part in any score or\n",
-      "ranking. The structure track is a sequence-only proxy, not a",
-      "folding prediction. Every feature carries a shape and a\n",
-      "label as well as a colour, so no reading depends on telling",
-      "colours apart."
+      if (show_cds_context) {
+        paste(
+          "Rows marked as context are coding sequence features. They",
+          "take no part in any score or ranking:\n"
+        )
+      } else {
+        paste(
+          "Coding sequence features are omitted. They take no part",
+          "in any score or ranking:\n"
+        )
+      },
+      "UTRunway compares untranslated region designs around a coding",
+      "sequence already chosen.\nThe structure track is a",
+      "sequence-only proxy, not a folding prediction."
     ),
     theme = utrunwayTheme()
   )
 }
-
 
 #' Check a requested construct is in the table
 #'
@@ -164,8 +197,7 @@ validateConstructChoice <- function(feature_table, construct_id) {
       call. = FALSE
     )
   }
-  if (is.na(x = construct_id) ||
-        !construct_id %in% available) {
+  if (is.na(x = construct_id) || !construct_id %in% available) {
     stop(
       "`construct_id` \"", construct_id, "\" is not in ",
       "`feature_table`, which holds: ",
@@ -179,15 +211,15 @@ validateConstructChoice <- function(feature_table, construct_id) {
 
 #' Where each region starts in whole-construct coordinates
 #'
-#' Positions in the feature table are relative to their own region, so
-#' drawing them on one axis means offsetting each region by the lengths
-#' of those before it.
+#' Positions in the feature table are relative to their own region,
+#' so drawing them on one axis means offsetting each region by the
+#' lengths of those before it.
 #'
 #' @param rows The feature rows for one construct.
 #' @return A data frame of region, length, start and end.
 #' @noRd
 regionOffsets <- function(rows) {
-  regions <- c("utr5", "cds", "utr3")
+  regions <- regionLevels()
   lengths <- vapply(
     X = regions,
     FUN = function(region) {
@@ -228,29 +260,6 @@ regionOffsets <- function(rows) {
 absolutePosition <- function(rows, offsets) {
   offsets$start[match(x = rows$region, table = offsets$region)] +
     rows$position
-}
-
-#' Select the positional rows for one feature family
-#'
-#' @param rows The feature rows for one construct.
-#' @param region Region to take rows from.
-#' @param pattern Regular expression matching the feature names.
-#' @param offsets The region offset table.
-#' @return A data frame with an added `x` column, possibly empty.
-#' @noRd
-featureMarks <- function(rows, region, pattern, offsets) {
-  selected <- rows[
-    rows$region == region &
-      !is.na(rows$position) &
-      grepl(pattern = pattern, x = rows$feature),
-    ,
-    drop = FALSE
-  ]
-  if (nrow(x = selected) == 0L) {
-    return(selected)
-  }
-  selected$x <- absolutePosition(rows = selected, offsets = offsets)
-  selected
 }
 
 #' A shared x scale, so every track lines up
@@ -318,225 +327,186 @@ buildRegionTrack <- function(offsets) {
     )
 }
 
-#' The 5' UTR track: upstream starts, uORF extents and motifs
+#' The rows the annotation track can hold, in 5' to 3' order
 #'
-#' @param rows The feature rows for one construct.
-#' @param offsets The region offset table.
-#' @return A ggplot object.
-#' @noRd
-buildUtr5Track <- function(rows, offsets) {
-  palette <- utrunwayPalette()
-  labels <- utrunwayLabels()
-  shapes <- utrunwayShapes()
-
-  augs <- featureMarks(
-    rows = rows, region = "utr5", pattern = "^upstream_aug_",
-    offsets = offsets
-  )
-  orfs <- featureMarks(
-    rows = rows, region = "utr5", pattern = "^upstream_orf$",
-    offsets = offsets
-  )
-  motifs <- featureMarks(
-    rows = rows, region = "utr5", pattern = "^motif_",
-    offsets = offsets
-  )
-
-  plot <- ggplot2::ggplot() + sharedXScale(offsets = offsets)
-
-  # uORF extents first, as segments beneath the start codons that
-  # open them, so a reader sees how far each one reads.
-  if (nrow(x = orfs) > 0L) {
-    orfs$xend <- orfs$x + orfs$value - 1
-    plot <- plot +
-      ggplot2::geom_segment(
-        data = orfs,
-        mapping = ggplot2::aes(
-          x = .data$x, xend = .data$xend, y = 0.45, yend = 0.45
-        ),
-        colour = palette[["upstream_aug_adequate"]],
-        linewidth = 1.6,
-        lineend = "round"
-      )
-    # Lengths are labelled only when the uORFs are far enough apart
-    # for the labels not to collide; otherwise the segments speak for
-    # themselves and the counts are in the feature table.
-    orfs$midpoint <- (orfs$x + orfs$xend) / 2
-    spacing <- if (nrow(x = orfs) > 1L) {
-      min(diff(sort(x = orfs$midpoint)))
-    } else {
-      Inf
-    }
-    if (spacing > max(offsets$end) * 0.06) {
-      plot <- plot +
-        ggplot2::geom_text(
-          data = orfs,
-          mapping = ggplot2::aes(
-            x = .data$midpoint, y = 0.15,
-            label = paste0(.data$value, " nt")
-          ),
-          colour = palette[["ink_secondary"]], size = 2.6
-        )
-    }
-  }
-
-  if (nrow(x = augs) > 0L) {
-    augs$strength <- sub(
-      pattern = "^upstream_aug_", replacement = "", x = augs$feature
-    )
-    augs$class <- labels[augs$feature]
-    plot <- plot +
-      ggplot2::geom_point(
-        data = augs,
-        mapping = ggplot2::aes(
-          x = .data$x, y = 1, fill = .data$class
-        ),
-        shape = shapes[["upstream_aug"]],
-        colour = palette[["ink"]],
-        size = 3,
-        stroke = 0.4
-      )
-  }
-
-  if (nrow(x = motifs) > 0L) {
-    motifs$class <- sub(
-      pattern = "^motif_", replacement = "", x = motifs$feature
-    )
-    motifs$class <- ifelse(
-      test = motifs$class == "TOP",
-      yes = labels[["top_motif"]],
-      no = labels[["g_quadruplex"]]
-    )
-    motifs$shape <- ifelse(
-      test = grepl(pattern = "TOP", x = motifs$feature),
-      yes = shapes[["top_motif"]],
-      no = shapes[["g_quadruplex"]]
-    )
-    motifs$xend <- motifs$x + motifs$value - 1
-    plot <- plot +
-      ggplot2::geom_segment(
-        data = motifs,
-        mapping = ggplot2::aes(
-          x = .data$x, xend = .data$xend, y = 1.55, yend = 1.55,
-          colour = .data$class
-        ),
-        linewidth = 1.6,
-        lineend = "round",
-        show.legend = FALSE
-      ) +
-      ggplot2::geom_point(
-        data = motifs,
-        mapping = ggplot2::aes(
-          x = (.data$x + .data$xend) / 2, y = 1.55,
-          fill = .data$class, shape = .data$class
-        ),
-        colour = palette[["ink"]],
-        size = 2.6,
-        stroke = 0.4
-      )
-  }
-
-  # A manual scale is only added when a layer actually maps to it;
-  # adding one with nothing mapped warns about unshared levels.
-  if (nrow(x = augs) > 0L || nrow(x = motifs) > 0L) {
-    plot <- plot +
-      ggplot2::scale_fill_manual(
-        values = featureFillValues(), drop = TRUE,
-        na.translate = FALSE
-      )
-  }
-  if (nrow(x = motifs) > 0L) {
-    plot <- plot +
-      ggplot2::scale_colour_manual(
-        values = featureFillValues(), drop = TRUE, guide = "none"
-      ) +
-      ggplot2::scale_shape_manual(
-        values = featureShapeValues(), drop = TRUE
-      )
-  }
-
-  plot +
-    ggplot2::scale_y_continuous(limits = c(0, 2), breaks = NULL) +
-    ggplot2::labs(
-      x = NULL, y = NULL,
-      title = "5' UTR: initiation features",
-      subtitle = if (nrow(x = augs) == 0L) {
-        "No upstream AUG, and no TOP or G-quadruplex motif"
-      } else {
-        NULL
-      }
-    ) +
-    utrunwayTheme() +
-    ggplot2::theme(axis.text.y = ggplot2::element_blank())
-}
-
-#' Colours keyed by the labels the legend shows
+#' Keyed by the feature name in the tidy table, or by a prefix where
+#' a family of features shares a row. Order here is the order the
+#' rows appear, top to bottom, so a figure of one construct can be
+#' compared with a figure of another.
 #'
-#' @return A named character vector of hex colours.
+#' @return A data frame of feature, row label, palette key and
+#'   whether the row is coding sequence context.
 #' @noRd
-featureFillValues <- function() {
-  palette <- utrunwayPalette()
+annotationRowSpec <- function() {
   labels <- utrunwayLabels()
 
-  stats::setNames(
-    object = c(
-      palette[["upstream_aug_weak"]],
-      palette[["upstream_aug_adequate"]],
-      palette[["upstream_aug_strong"]],
-      palette[["upstream_aug_unscored"]],
-      palette[["top_motif"]],
-      palette[["g_quadruplex"]],
-      palette[["polya_signal"]],
-      palette[["polya_signal"]],
-      palette[["are_pentamer"]],
-      palette[["mirna_seed"]]
+  data.frame(
+    feature = c(
+      "upstream_aug_strong", "upstream_aug_adequate",
+      "upstream_aug_weak", "upstream_aug_unscored",
+      "upstream_orf", "motif_TOP", "motif_G_quadruplex",
+      "premature_stop", "out_of_frame_atg",
+      "polya_signal_canonical", "polya_signal_variant",
+      "are_pentamer", "mirna_seed"
     ),
-    nm = c(
-      labels[["upstream_aug_weak"]],
-      labels[["upstream_aug_adequate"]],
+    label = c(
       labels[["upstream_aug_strong"]],
+      labels[["upstream_aug_adequate"]],
+      labels[["upstream_aug_weak"]],
       labels[["upstream_aug_unscored"]],
+      labels[["upstream_orf"]],
       labels[["top_motif"]],
       labels[["g_quadruplex"]],
+      "CDS context: premature stop",
+      "CDS context: out-of-frame ATG",
       labels[["polya_signal_canonical"]],
       labels[["polya_signal_variant"]],
       labels[["are_pentamer"]],
       labels[["mirna_seed"]]
-    )
+    ),
+    colour_key = c(
+      "upstream_aug_strong", "upstream_aug_adequate",
+      "upstream_aug_weak", "upstream_aug_unscored",
+      "upstream_aug_adequate", "top_motif", "g_quadruplex",
+      "context", "context",
+      "polya_signal", "polya_signal",
+      "are_pentamer", "mirna_seed"
+    ),
+    shape_key = c(
+      "upstream_aug", "upstream_aug", "upstream_aug", "upstream_aug",
+      "upstream_orf", "top_motif", "g_quadruplex",
+      "premature_stop", "out_of_frame_atg",
+      "polya_signal_canonical", "polya_signal_variant",
+      "are_pentamer", "mirna_seed"
+    ),
+    is_context = c(
+      rep(x = FALSE, times = 7L), TRUE, TRUE,
+      rep(x = FALSE, times = 4L)
+    ),
+    stringsAsFactors = FALSE
   )
 }
 
-#' Shapes keyed by the labels the legend shows
+#' Shapes for the rows of the annotation track
 #'
 #' @return A named integer vector of pch values.
 #' @noRd
-featureShapeValues <- function() {
-  labels <- utrunwayLabels()
+annotationShapes <- function() {
   shapes <- utrunwayShapes()
-
-  stats::setNames(
-    object = c(
-      rep(x = shapes[["upstream_aug"]], times = 4L),
-      shapes[["top_motif"]],
-      shapes[["g_quadruplex"]],
-      shapes[["polya_signal_canonical"]],
-      shapes[["polya_signal_variant"]],
-      shapes[["are_pentamer"]],
-      shapes[["mirna_seed"]]
-    ),
-    nm = c(
-      labels[["upstream_aug_weak"]],
-      labels[["upstream_aug_adequate"]],
-      labels[["upstream_aug_strong"]],
-      labels[["upstream_aug_unscored"]],
-      labels[["top_motif"]],
-      labels[["g_quadruplex"]],
-      labels[["polya_signal_canonical"]],
-      labels[["polya_signal_variant"]],
-      labels[["are_pentamer"]],
-      labels[["mirna_seed"]]
-    )
+  c(
+    shapes,
+    premature_stop = 4L,
+    out_of_frame_atg = 3L
   )
+}
+
+#' Gather every positional feature into one table of marks
+#'
+#' @param rows The feature rows for one construct.
+#' @param offsets The region offset table.
+#' @param show_cds_context Whether to keep coding sequence rows.
+#' @return A data frame of marks, possibly with zero rows.
+#' @noRd
+annotationMarks <- function(rows, offsets, show_cds_context) {
+  spec <- annotationRowSpec()
+  if (!show_cds_context) {
+    spec <- spec[!spec$is_context, , drop = FALSE]
+  }
+
+  positional <- rows[!is.na(rows$position), , drop = FALSE]
+  # miRNA seed rows carry the family in the name, so they are matched
+  # by prefix and all share one row.
+  positional$row_key <- ifelse(
+    test = grepl(pattern = "^mirna_seed_", x = positional$feature),
+    yes = "mirna_seed",
+    no = positional$feature
+  )
+  marks <- positional[positional$row_key %in% spec$feature, ,
+                      drop = FALSE]
+  if (nrow(x = marks) == 0L) {
+    return(marks)
+  }
+
+  matched <- match(x = marks$row_key, table = spec$feature)
+  marks$label <- spec$label[matched]
+  marks$colour <- utrunwayPalette()[spec$colour_key[matched]]
+  marks$shape <- annotationShapes()[spec$shape_key[matched]]
+  marks$is_context <- spec$is_context[matched]
+  marks$x <- absolutePosition(rows = marks, offsets = offsets)
+  marks$xend <- marks$x + marks$value - 1
+  marks$midpoint <- (marks$x + marks$xend) / 2
+
+  # Rows appear top to bottom in 5' to 3' order, so the factor is
+  # reversed: ggplot2 draws the first level at the bottom.
+  present <- spec$label[spec$label %in% marks$label]
+  marks$label <- factor(x = marks$label, levels = rev(x = present))
+  marks
+}
+
+#' The annotation track: every feature, one row per class
+#'
+#' @param rows The feature rows for one construct.
+#' @param offsets The region offset table.
+#' @param show_cds_context Whether to draw coding sequence rows.
+#' @return A ggplot object.
+#' @noRd
+buildAnnotationTrack <- function(rows, offsets, show_cds_context) {
+  palette <- utrunwayPalette()
+  marks <- annotationMarks(
+    rows = rows, offsets = offsets,
+    show_cds_context = show_cds_context
+  )
+
+  if (nrow(x = marks) == 0L) {
+    return(
+      emptyTrack(
+        offsets = offsets,
+        title = "Annotated features: none found in this construct"
+      )
+    )
+  }
+
+  ggplot2::ggplot() +
+    sharedXScale(offsets = offsets) +
+    # The extent of each feature, which matters for a uORF or a
+    # motif and is invisibly short for a hexamer or a start codon.
+    ggplot2::geom_segment(
+      data = marks,
+      mapping = ggplot2::aes(
+        x = .data$x, xend = .data$xend,
+        y = .data$label, yend = .data$label,
+        colour = .data$colour
+      ),
+      linewidth = 1.5,
+      lineend = "butt"
+    ) +
+    ggplot2::geom_point(
+      data = marks,
+      mapping = ggplot2::aes(
+        x = .data$midpoint, y = .data$label,
+        fill = .data$colour, shape = .data$shape
+      ),
+      colour = palette[["ink"]],
+      size = 2.4,
+      stroke = 0.4
+    ) +
+    ggplot2::scale_colour_identity() +
+    ggplot2::scale_fill_identity() +
+    ggplot2::scale_shape_identity() +
+    ggplot2::scale_y_discrete(drop = FALSE) +
+    ggplot2::labs(
+      x = NULL, y = NULL,
+      title = "Annotated features across the whole construct"
+    ) +
+    utrunwayTheme() +
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_text(
+        colour = palette[["ink_secondary"]], size = 7.5
+      ),
+      panel.grid.major.y = ggplot2::element_line(
+        colour = palette[["grid"]], linewidth = 0.25
+      )
+    )
 }
 
 #' The structure track: the sequence-only GC and stem proxy
@@ -609,7 +579,7 @@ buildStructureTrack <- function(rows, offsets) {
       limits = c(0, 1), breaks = c(0, 0.5, 1)
     ) +
     ggplot2::labs(
-      x = NULL, y = "GC",
+      x = "Position in construct (nt)", y = "GC",
       title = "Structure proxy: sliding-window GC content",
       subtitle = paste(
         "Open triangles mark windows holding a complementary run of",
@@ -617,166 +587,6 @@ buildStructureTrack <- function(rows, offsets) {
       )
     ) +
     utrunwayTheme()
-}
-
-#' The coding sequence track, drawn as context
-#'
-#' Everything here is grey, because none of it is scored.
-#'
-#' @param rows The feature rows for one construct.
-#' @param offsets The region offset table.
-#' @return A ggplot object.
-#' @noRd
-buildCdsTrack <- function(rows, offsets) {
-  palette <- utrunwayPalette()
-
-  gc3 <- rows$value[rows$region == "cds" & rows$feature == "gc3_content"]
-  gc_overall <- rows$value[
-    rows$region == "cds" & rows$feature == "gc_content"
-  ]
-  stops <- featureMarks(
-    rows = rows, region = "cds", pattern = "^premature_stop$",
-    offsets = offsets
-  )
-  cryptic <- featureMarks(
-    rows = rows, region = "cds", pattern = "^out_of_frame_atg$",
-    offsets = offsets
-  )
-  cds_row <- offsets[offsets$region == "cds", ]
-
-  plot <- ggplot2::ggplot() +
-    sharedXScale(offsets = offsets) +
-    ggplot2::geom_rect(
-      data = cds_row,
-      mapping = ggplot2::aes(
-        xmin = .data$start + 1, xmax = .data$end - 1,
-        ymin = 0.35, ymax = 0.65
-      ),
-      fill = palette[["context_fill"]]
-    )
-
-  if (nrow(x = cryptic) > 0L) {
-    plot <- plot +
-      ggplot2::geom_point(
-        data = cryptic,
-        mapping = ggplot2::aes(x = .data$x, y = 0.5),
-        shape = 124L,
-        colour = palette[["context"]],
-        size = 2.2
-      )
-  }
-  if (nrow(x = stops) > 0L) {
-    plot <- plot +
-      ggplot2::geom_point(
-        data = stops,
-        mapping = ggplot2::aes(x = .data$x, y = 0.5),
-        shape = 4L,
-        colour = palette[["ink"]],
-        size = 2.6,
-        stroke = 0.7
-      )
-  }
-
-  plot +
-    ggplot2::scale_y_continuous(limits = c(0, 1), breaks = NULL) +
-    ggplot2::labs(
-      x = NULL, y = NULL,
-      title = "CDS: context only, never scored",
-      subtitle = paste0(
-        "GC ", round(x = gc_overall * 100), "%, GC3 ",
-        round(x = gc3 * 100), "%. Vertical ticks mark out-of-frame ",
-        "ATGs; crosses mark premature in-frame stops."
-      )
-    ) +
-    utrunwayTheme() +
-    ggplot2::theme(axis.text.y = ggplot2::element_blank())
-}
-
-#' The 3' UTR track: polyA signals, AU-rich elements and seed sites
-#'
-#' @param rows The feature rows for one construct.
-#' @param offsets The region offset table.
-#' @return A ggplot object.
-#' @noRd
-buildUtr3Track <- function(rows, offsets) {
-  palette <- utrunwayPalette()
-  labels <- utrunwayLabels()
-
-  elements <- featureMarks(
-    rows = rows,
-    region = "utr3",
-    pattern = "^(polya_signal_|are_pentamer$|mirna_seed_)",
-    offsets = offsets
-  )
-
-  if (nrow(x = elements) == 0L) {
-    return(emptyTrack(
-      offsets = offsets,
-      title = "3' UTR: no decay or repression elements found"
-    ))
-  }
-
-  elements$class <- ifelse(
-    test = elements$feature == "polya_signal_canonical",
-    yes = labels[["polya_signal_canonical"]],
-    no = ifelse(
-      test = elements$feature == "polya_signal_variant",
-      yes = labels[["polya_signal_variant"]],
-      no = ifelse(
-        test = elements$feature == "are_pentamer",
-        yes = labels[["are_pentamer"]],
-        no = labels[["mirna_seed"]]
-      )
-    )
-  )
-  # One row per class, so overlapping pentamers do not pile up on a
-  # single line and become unreadable.
-  class_levels <- c(
-    labels[["polya_signal_canonical"]],
-    labels[["polya_signal_variant"]],
-    labels[["are_pentamer"]],
-    labels[["mirna_seed"]]
-  )
-  class_levels <- class_levels[class_levels %in% elements$class]
-  elements$y <- match(x = elements$class, table = class_levels)
-
-  ggplot2::ggplot() +
-    sharedXScale(offsets = offsets) +
-    # Each class has its own row, named on the axis. That direct
-    # label is the identity channel here, so the legend would only
-    # repeat it.
-    ggplot2::geom_point(
-      data = elements,
-      mapping = ggplot2::aes(
-        x = .data$x, y = .data$y,
-        fill = .data$class, shape = .data$class
-      ),
-      colour = palette[["ink"]],
-      size = 2.8,
-      stroke = 0.4,
-      show.legend = FALSE
-    ) +
-    ggplot2::scale_fill_manual(
-      values = featureFillValues(), drop = TRUE, na.translate = FALSE
-    ) +
-    ggplot2::scale_shape_manual(
-      values = featureShapeValues(), drop = TRUE
-    ) +
-    ggplot2::scale_y_continuous(
-      limits = c(0.5, length(x = class_levels) + 0.5),
-      breaks = seq_along(along.with = class_levels),
-      labels = class_levels
-    ) +
-    ggplot2::labs(
-      x = "Position in construct (nt)", y = NULL,
-      title = "3' UTR: decay and repression elements"
-    ) +
-    utrunwayTheme() +
-    ggplot2::theme(
-      axis.text.y = ggplot2::element_text(
-        colour = palette[["ink_secondary"]], size = 7
-      )
-    )
 }
 
 #' A placeholder track, for a region with nothing to draw
