@@ -30,7 +30,9 @@ expected_scalar_features <- list(
 # this set means a new feature arrived without being documented.
 expected_positional_features <- list(
   utr5 = c(
-    "gc_window", "stem_window", "upstream_aug", "upstream_orf",
+    "gc_window", "stem_window", "upstream_orf",
+    "upstream_aug_strong", "upstream_aug_adequate",
+    "upstream_aug_weak", "upstream_aug_unscored",
     "motif_TOP", "motif_G_quadruplex"
   ),
   cds = c(
@@ -362,6 +364,60 @@ test_that("counts are reported as zero rather than left out", {
     object = sum(all_features$feature == "motif_TOP" &
                    all_features$construct_id == "CONSTRUCT_01"),
     expected = 0L
+  )
+})
+
+test_that("upstream AUGs carry their own Kozak strength", {
+  # Every upstream AUG appears once under a strength-qualified name,
+  # and they account for exactly the n_upstream_aug count.
+  for (i in seq_len(length.out = nrow(x = simulatedConstructs))) {
+    row_i <- simulatedConstructs[i, ]
+    rows <- all_features[
+      all_features$construct_id == row_i$construct_id &
+        grepl(pattern = "^upstream_aug_", x = all_features$feature),
+    ]
+
+    expect_identical(
+      object = nrow(x = rows),
+      expected = row_i$n_upstream_aug,
+      info = row_i$construct_id
+    )
+    expect_true(
+      object = all(
+        rows$feature %in% c(
+          "upstream_aug_strong", "upstream_aug_adequate",
+          "upstream_aug_weak", "upstream_aug_unscored"
+        )
+      ),
+      info = row_i$construct_id
+    )
+    expect_false(object = anyNA(x = rows$position))
+  }
+
+  # The strength in the name is the strength findUpstreamORFs reports.
+  with_augs <- simulatedConstructs[
+    simulatedConstructs$construct_id == "CONSTRUCT_03",
+  ]
+  direct <- findUpstreamORFs(
+    utr5 = with_augs$utr5, cds = with_augs$cds
+  )
+  rows <- all_features[
+    all_features$construct_id == "CONSTRUCT_03" &
+      grepl(pattern = "^upstream_aug_", x = all_features$feature),
+  ]
+  rows <- rows[order(rows$position), ]
+  expect_identical(
+    object = rows$position, expected = direct$aug_position
+  )
+  expect_identical(
+    object = sub(
+      pattern = "^upstream_aug_", replacement = "", x = rows$feature
+    ),
+    expected = ifelse(
+      test = is.na(x = direct$kozak_strength),
+      yes = "unscored",
+      no = direct$kozak_strength
+    )
   )
 })
 

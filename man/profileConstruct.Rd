@@ -90,6 +90,15 @@ follows from the name:
     name, and a miRNA seed site \code{mirna_seed_} followed by the
     family, so \code{grepl("^motif_", feature)} selects all motif
     occurrences.
+  \item An upstream AUG is named \code{upstream_aug_} followed by
+    the strength of its own initiation context, one of
+    \code{strong}, \code{adequate}, \code{weak} or
+    \code{unscored} where the context window does not fit. So
+    \code{grepl("^upstream_aug_", feature)} selects every upstream
+    AUG, and the name distinguishes a strong upstream start from a
+    weak one without recomputing it. The count
+    \code{n_upstream_aug} covers all of them regardless of
+    strength.
 }
 }
 

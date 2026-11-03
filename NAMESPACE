@@ -4,6 +4,7 @@ S3method(print,utrunway_rank_stability)
 S3method(print,utrunway_ranking)
 export(estimateStructure)
 export(findUpstreamORFs)
+export(plotConstructMap)
 export(profileCDS)
 export(profileConstruct)
 export(rankCandidates)
@@ -22,3 +23,4 @@ importFrom(IRanges,
   end,
   start
 )
+importFrom(ggplot2,.data)

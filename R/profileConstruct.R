@@ -50,6 +50,15 @@
 #'     name, and a miRNA seed site \code{mirna_seed_} followed by the
 #'     family, so \code{grepl("^motif_", feature)} selects all motif
 #'     occurrences.
+#'   \item An upstream AUG is named \code{upstream_aug_} followed by
+#'     the strength of its own initiation context, one of
+#'     \code{strong}, \code{adequate}, \code{weak} or
+#'     \code{unscored} where the context window does not fit. So
+#'     \code{grepl("^upstream_aug_", feature)} selects every upstream
+#'     AUG, and the name distinguishes a strong upstream start from a
+#'     weak one without recomputing it. The count
+#'     \code{n_upstream_aug} covers all of them regardless of
+#'     strength.
 #' }
 #'
 #' @section Positions are within a region, not the construct:
@@ -477,9 +486,20 @@ profileUtr5 <- function(construct_id, utr5, cds, extra_args) {
       sequence = utr5, extra_args = extra_args
     ),
     list(
+      # Each upstream AUG carries its own initiation context in its
+      # feature name, as the polyA hexamers carry theirs, so that a
+      # plot or a score can tell a strong upstream start from a weak
+      # one without recomputing it.
       featureRows(
         construct_id = construct_id, region = "utr5",
-        feature = rep(x = "upstream_aug", times = nrow(x = upstream)),
+        feature = prefixFeature(
+          prefix = "upstream_aug_",
+          x = ifelse(
+            test = is.na(x = upstream$kozak_strength),
+            yes = "unscored",
+            no = upstream$kozak_strength
+          )
+        ),
         value = rep(x = 3L, times = nrow(x = upstream)),
         position = upstream$aug_position
       ),
