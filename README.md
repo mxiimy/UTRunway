@@ -142,26 +142,38 @@ codon optimisation, use **cubar**.
 
 **Author: Melody Mo.**
 
-The author designed the package and made every decision it embodies.
-That includes its scope and the rule that ranking uses untranslated
-region features only; the selection of which sequence features to
-measure and the definition of each one; the scoring and ranking
-scheme, including the direction assigned to every feature and the
-decision that weights are supplied by the user and recorded with the
-result; and the design of every figure, including the decision to
-merge the three regions into a single annotated track in the
-construct map. The specifications, design revisions and corrections
-that produced this package are recorded in the project's git history.
+The author set the package's purpose and scope, specified every
+function before it was written, and directed the work throughout.
+Specifically, the author determined: that the package would evaluate
+designed constructs from sequence alone and that ranking would use
+untranslated region features only, with coding sequence features
+reported as context and never scored; which sequence features to
+measure and how each is defined, including the Kozak consensus to
+score against, the AUUUA pentamer as the AU-rich element, and the
+decision that structure would be a lightweight in-R proxy rather
+than thermodynamic folding; that the package would depend on nothing
+outside R; that scoring would normalise within the submitted set,
+take weights from the user, and record those weights with the
+result; and that a stability analysis would accompany any ranking.
 
-Generative AI was used to write the package. The model was
-**Anthropic Claude (Opus)**, accessed through the Claude Code
+Design decisions made by the author during review are recorded in
+the git history, among them scoring GC content in both untranslated
+regions in opposite directions, merging the three per-region tracks
+of the construct map into one annotated track, omitting coding
+sequence features from that map by default, and requiring the
+validation statement that appears in the vignette and below.
+
+Generative AI wrote the package from those specifications. The model
+was **Anthropic Claude (Opus)**, accessed through the Claude Code
 command-line interface, over a series of sessions in which the author
-gave written specifications for each function and reviewed, corrected
-and directed the result. AI wrote the R implementation of each
-function, its `roxygen2` documentation, the unit tests, the data
-generation script and the vignette prose, working from those
-specifications. Every file in `R/`, `tests/` and `vignettes/` was
-produced this way and then verified as described below.
+gave written specifications and reviewed, corrected and directed the
+result. AI wrote the R implementation of each function, its
+`roxygen2` documentation, the unit tests, the data generation script
+and the vignette prose, and proposed the implementation details the
+specifications left open, such as the feature naming scheme of the
+tidy table, the colour palette, and the form of each error message.
+Every file in `R/`, `tests/` and `vignettes/` was produced this way,
+reviewed by the author, and verified as described below.
 
 Verification was not left to inspection. The package ships a dataset,
 `simulatedConstructs`, in which every sequence feature is deliberately
@@ -230,8 +242,9 @@ R Core Team. (2026). *R: A language and environment for statistical
 computing*. R Foundation for Statistical Computing, Vienna, Austria.
 <https://www.R-project.org/>
 
-Romo, L., et al. (2024). *RegVar*. [Full citation to be completed by
-the author: journal, volume, pages and DOI.]
+Romo, L., et al. (2024). Regulatory features aid interpretation of
+3' UTR variants. *American Journal of Human Genetics*, 111(2),
+350–363.
 
 Sample, P. J., Wang, B., Reid, D. W., Presnyak, V., McFadyen, I. J.,
 Morris, D. R., & Seelig, G. (2019). Human 5' UTR design and variant

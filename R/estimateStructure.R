@@ -1,155 +1,83 @@
-#' Estimate Local RNA Structure With a Sequence-Only Proxy
+#' Estimate Local RNA Structure With A Sequence-Only Proxy
 #'
-#' @description
-#' Scans a sequence in overlapping windows and reports, for each
-#' window, its GC content and whether it contains a pair of
+#' A function that scans a sequence in overlapping windows and
+#' reports, for each window, its GC content and the longest pair of
 #' reverse-complementary runs that could pair into a hairpin stem.
-#' Together these give a cheap, sequence-only indication of where a
-#' transcript is likely to be structured.
+#' Together these give a cheap indication of where a transcript is
+#' likely to be structured. This function does not fold RNA: there is
+#' no nearest-neighbour energy model, no partition function and no
+#' minimum free energy anywhere in it. Pairings spanning more than
+#' one window are invisible, a stem of A-U pairs counts the same as
+#' one of G-C pairs, and a possible pairing is not one that forms.
+#' Use it to compare candidate designs on the same settings, and
+#' fold the sequence with a thermodynamic program if a structure
+#' prediction is needed.
 #'
-#' @section This is a proxy, not a folding prediction:
-#' \strong{This function does not fold RNA.} It performs no
-#' thermodynamic calculation: there is no nearest-neighbour energy
-#' model, no partition function, no minimum free energy and no base
-#' pair probability anywhere in it. GC content is counted and
-#' complementary runs are matched, and that is all. The output is a
-#' heuristic flag, not a structure.
+#' @param sequence A character vector of length one giving the
+#'    sequence to scan. Upper or lower case is accepted, as is the
+#'    DNA or the RNA alphabet.
 #'
-#' What follows from that, and matters when reading the results:
+#' @param window A positive integer of length one giving the window
+#'    width in nucleotides. Default is 40.
 #'
+#' @param step A positive integer of length one giving how far each
+#'    window advances. Default is 10.
+#'
+#' @param min_stem A positive integer of length one giving the
+#'    shortest complementary run counted as a possible stem for
+#'    hairpin_flag. At a five nucleotide stem, shuffled sequence is
+#'    flagged as often as real sequence, so the default is stricter.
+#'    Default is 8.
+#'
+#' @param min_loop A positive integer of length one giving the fewest
+#'    nucleotides that must separate the two runs. Default is 3.
+#'
+#' @return Returns a data frame of class "data.frame" with one row
+#'    per window containing:
 #' \itemize{
-#'   \item \strong{Long-range interactions are missed.} Only pairings
-#'     that fall inside a single window are considered, so a stem
-#'     formed between two distant parts of a transcript is invisible
-#'     however stable it would be. Widening \code{window} widens the
-#'     reach, at the cost of blurring where the signal is.
-#'   \item \strong{No stability is estimated.} A stem of eight A-U
-#'     pairs counts the same as eight G-C pairs, though the latter is
-#'     far more stable. GC content is reported alongside partly to
-#'     offset this.
-#'   \item \strong{Competing structures are ignored.} A real sequence
-#'     folds into one structure out of many possible ones; this scan
-#'     reports that a pairing is possible, not that it forms.
+#'   \item window_start - An integer giving the 1-based position of
+#'      the window's first nucleotide.
+#'   \item window_end - An integer giving the position of its last
+#'      nucleotide.
+#'   \item gc_content - A double giving the proportion of G and C in
+#'      the window, between 0 and 1.
+#'   \item max_stem_nt - An integer giving the longest pair of
+#'      reverse-complementary runs found, or 0. Independent of
+#'      min_stem, and preferable to hairpin_flag when comparing
+#'      candidates because it is a measurement rather than a cutoff.
+#'   \item hairpin_flag - A logical, TRUE when max_stem_nt is at
+#'      least min_stem.
 #' }
 #'
-#' @section Why the default stem length is eight:
-#' Short complementary runs are everywhere in random sequence, so a
-#' short stem requirement reports nothing but base composition. The
-#' rate at which windows of the bundled simulated constructs are
-#' flagged, against the rate for the same sequences shuffled, which
-#' destroys any structure while preserving composition:
+#' @examples
+#' # CONSTRUCT_05 carries a planted G-quadruplex-prone run in its
+#' # 5' UTR, which shows as a GC-rich stretch.
+#' structured <- UTRunway::simulatedConstructs[5, ]
+#' structureProfile <- UTRunway::estimateStructure(
+#'    sequence = structured$utr5)
+#' structureProfile
 #'
-#' \tabular{rrr}{
-#'   \strong{min_stem} \tab \strong{flagged} \tab \strong{shuffled} \cr
-#'   4 \tab 79\% \tab - \cr
-#'   5 \tab 28\% \tab 37\% \cr
-#'   7 \tab 1.3\% \tab - \cr
-#'   8 \tab 0.5\% \tab 0\%
-#' }
+#' # The most GC-rich window, as a rough guide to where structure is
+#' # most likely.
+#' structureProfile[which.max(x = structureProfile$gc_content), ]
 #'
-#' At a five nucleotide stem, shuffled sequence is flagged at least as
-#' often as real sequence: the flag carries no information about
-#' structure at that setting. A chance five nucleotide pairing is
-#' expected about once per forty nucleotide window, against about once
-#' per hundred windows at eight. The default is therefore eight, where
-#' a flag is rarer than chance and so worth looking at.
-#'
-#' Because any threshold is a blunt instrument, \code{max_stem_nt}
-#' reports the longest complementary run actually found in each
-#' window, whatever \code{min_stem} is set to. Prefer it to
-#' \code{hairpin_flag} when comparing candidates: it is a measurement
-#' rather than the result of a cutoff.
-#'
-#' Use it to compare candidate designs against one another on the same
-#' settings, which is what UTRunway does with it. Do not read it as a
-#' structure prediction. If a real structure prediction is needed, fold
-#' the sequence with a thermodynamic folding program, which is outside
-#' this package by design, because UTRunway depends on nothing beyond
-#' R.
-#'
-#' @details
-#' Windows start at position one and advance by \code{step} for as long
-#' as a whole window fits, so trailing nucleotides that cannot fill a
-#' window are not covered. When the sequence is shorter than
-#' \code{window}, a single window spanning the whole sequence is used
-#' and a warning is raised.
-#'
-#' Within each window, the scan finds the longest pair of runs that
-#' are the reverse complement of one another and are separated by at
-#' least \code{min_loop} nucleotides, which is the smallest
-#' arrangement that could close a hairpin. That length is reported as
-#' \code{max_stem_nt}, and \code{hairpin_flag} is simply whether it
-#' reaches \code{min_stem}.
-#'
-#' @param sequence Character string of length one, the sequence to
-#'   scan. Upper or lower case, DNA or RNA alphabet.
-#' @param window Single whole number, the window width in nucleotides.
-#' @param step Single whole number, how far each window advances.
-#' @param min_stem Single whole number, the shortest complementary run
-#'   counted as a possible stem for \code{hairpin_flag}. Defaults to
-#'   8; see the section on why. It does not affect
-#'   \code{max_stem_nt}.
-#' @param min_loop Single whole number, the fewest nucleotides that
-#'   must separate the two runs, standing in for the turn a hairpin
-#'   loop has to make.
-#'
-#' @return A data frame with one row per window and these columns:
-#'   \describe{
-#'     \item{window_start}{Integer. 1-based position of the window's
-#'       first nucleotide.}
-#'     \item{window_end}{Integer. 1-based position of the window's last
-#'       nucleotide.}
-#'     \item{gc_content}{Numeric. Proportion of G and C in the window,
-#'       between 0 and 1.}
-#'     \item{max_stem_nt}{Integer. Length of the longest pair of
-#'       reverse-complementary runs found in the window that are far
-#'       enough apart to leave a loop, or \code{0} if none reach two
-#'       nucleotides. Independent of \code{min_stem}.}
-#'     \item{hairpin_flag}{Logical. \code{TRUE} when
-#'       \code{max_stem_nt} is at least \code{min_stem}.}
-#'   }
+#' # Finer windows resolve more detail but reach shorter distances.
+#' UTRunway::estimateStructure(sequence = structured$utr5,
+#'                             window = 20, step = 20)
 #'
 #' @references
 #' Babendure, J. R., Babendure, J. L., Ding, J.-H. and Tsien, R. Y.
 #' (2006). Control of mammalian translation by mRNA structure near
-#' caps. \emph{RNA} 12(5), 851-861. \doi{10.1261/rna.2309906}
+#' caps. \emph{RNA}, 12(5), 851-861.
+#' \href{https://doi.org/10.1261/rna.2309906}{Link}
 #'
 #' Hinnebusch, A. G., Ivanov, I. P. and Sonenberg, N. (2016).
 #' Translational control by 5'-untranslated regions of eukaryotic
-#' mRNAs. \emph{Science} 352(6292), 1413-1416.
-#' \doi{10.1126/science.aad9868}
+#' mRNAs. \emph{Science}, 352(6292), 1413-1416.
+#' \href{https://doi.org/10.1126/science.aad9868}{Link}
 #'
-#' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#'
-#' # CONSTRUCT_05 carries a planted G-quadruplex-prone run in its
-#' # 5' UTR, which shows up as a GC-rich window.
-#' structured <- simulatedConstructs[
-#'   simulatedConstructs$construct_id == "CONSTRUCT_05",
-#' ]
-#' profile <- estimateStructure(sequence = structured$utr5)
-#' profile
-#'
-#' # The most GC-rich window, as a rough guide to where structure is
-#' # most likely.
-#' profile[which.max(x = profile$gc_content), ]
-#'
-#' # max_stem_nt is a measurement, so it can be compared directly
-#' # across windows without choosing a cutoff.
-#' profile[which.max(x = profile$max_stem_nt), ]
-#'
-#' # Finer windows resolve more detail but reach shorter distances.
-#' estimateStructure(sequence = structured$utr5, window = 20, step = 20)
-#'
-#' # A clear hairpin: two eight nucleotide complementary runs around a
-#' # three nucleotide loop.
-#' estimateStructure(
-#'   sequence = "GGGGCCCCAAAGGGGCCCCTTTTTTTTTTTTTTTTTTTT",
-#'   window = 39
-#' )
-#'
-#' @importFrom Biostrings DNAString letterFrequency reverseComplement
 #' @export
+#' @importFrom Biostrings DNAString letterFrequency reverseComplement
 estimateStructure <- function(sequence, window = 40, step = 10,
                               min_stem = 8, min_loop = 3) {
   sequence <- normaliseSequence(sequence = sequence, arg_name = "sequence")

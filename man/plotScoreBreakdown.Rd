@@ -7,56 +7,42 @@
 plotScoreBreakdown(ranking)
 }
 \arguments{
-\item{ranking}{An object from \code{\link{rankCandidates}}.}
+\item{ranking}{An object of class "utrunway_ranking" produced by
+rankCandidates().}
 }
 \value{
-A \pkg{ggplot2} object, which can be customised further.
+Returns a ggplot2 object of horizontal stacked bars
+   faceted by region, ordered best candidate first, which can be
+   customised further.
 }
 \description{
-Draws the composite score of every candidate as a stack of the
-per-feature contributions behind it, split by region, so that a
-ranking can be read as a set of reasons rather than as one number.
-}
-\details{
-The height of a stack is the candidate's score, and each segment
-is one feature's contribution: its value, scaled across the
-candidates and oriented so that higher is better, multiplied by
-its weight. Segments therefore sum to the score, and a short
-segment is a feature on which this candidate did poorly relative
-to the others.
-
+A function that draws the composite score of every candidate as a
+stack of the per-feature contributions behind it, split by region,
+so a ranking can be read as a set of reasons rather than as one
+number. The height of a stack is the candidate's score and each
+segment is one feature's contribution, so a short segment is a
+feature on which the candidate did poorly relative to the others.
 The dashed rule in each panel is the most that region could
-contribute, which is the sum of its weights. The gap between a
-stack and that rule is what the candidate gave away in that
-region: that gap is the "hurts" the figure is for.
-
-Only the untranslated regions appear, because only they are
-scored. There is no coding sequence panel to show.
+contribute, so the gap between a stack and the rule is what the
+candidate gave away. Only the untranslated regions appear, because
+only they are scored.
 }
-\section{The order depends on the weights}{
-
-Candidates are ordered by the score produced by the weights
-recorded in the ranking object, which are shown in the caption.
-Different weights give a different order; see
-\code{\link{rankStability}} for how much the order moves when the
-weights are perturbed.
-}
-
 \examples{
-data(simulatedConstructs, package = "UTRunway")
-features <- profileConstruct(
-  constructs = simulatedConstructs[1:6, ]
-)
-ranking <- rankCandidates(feature_table = features)
+features <- UTRunway::profileConstruct(
+   constructs = UTRunway::simulatedConstructs[1:6, ])
+ranking <- UTRunway::rankCandidates(feature_table = features)
 
-plotScoreBreakdown(ranking = ranking)
+UTRunway::plotScoreBreakdown(ranking = ranking)
 
 # A different weighting gives a different breakdown.
-plotScoreBreakdown(
-  ranking = rankCandidates(
-    feature_table = features,
-    weights = c(kozak_score_scaled = 3, n_upstream_orf = 1)
-  )
-)
+UTRunway::plotScoreBreakdown(
+   ranking = UTRunway::rankCandidates(
+      feature_table = features,
+      weights = c(kozak_score_scaled = 3, n_upstream_orf = 1)))
 
+}
+\references{
+Wickham, H. (2016). \emph{ggplot2: Elegant Graphics for Data
+Analysis}. Springer-Verlag New York.
+\href{https://ggplot2.tidyverse.org}{Link}
 }

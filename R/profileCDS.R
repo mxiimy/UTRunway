@@ -1,143 +1,83 @@
-#' Profile a Coding Sequence for Context
+#' Profile A Coding Sequence For Context
 #'
-#' @description
-#' Describes a construct's coding sequence: base composition overall
-#' and at third codon positions, premature in-frame stop codons, and
-#' AUGs that sit out of frame. These are reported so that a construct
-#' map or a candidate comparison can show the coding sequence
-#' alongside its untranslated regions.
+#' A function that describes a construct's coding sequence: base
+#' composition overall and at third codon positions, premature
+#' in-frame stop codons, and AUGs sitting out of frame. Nothing this
+#' function returns contributes to any UTRunway score or ranking.
+#' The package ranks candidate designs on 5' and 3' untranslated
+#' region features alone, because its scope is untranslated region
+#' design: which UTRs to put around a coding sequence already
+#' chosen. Coding sequence features are shown as context so a design
+#' can be read as a whole. There is deliberately no codon adaptation
+#' index here and no codon usage table; for codon usage analysis and
+#' codon optimisation use the cubar package on CRAN.
 #'
-#' @section Reported for context, never scored:
-#' \strong{Nothing this function returns contributes to any UTRunway
-#' score or ranking.} UTRunway ranks candidate designs on 5' UTR and
-#' 3' UTR features alone, because its scope is untranslated region
-#' design: the question it answers is which UTRs to put around a
-#' coding sequence that has already been chosen. Coding sequence
-#' features are shown as context, so that a design can be read as a
-#' whole, and are deliberately excluded from the candidate ranking
-#' that \code{rankCandidates()} performs.
+#' @param cds A character vector of length one giving the coding
+#'    sequence. Upper or lower case is accepted, as is the DNA or the
+#'    RNA alphabet. A length that is not a multiple of three is
+#'    accepted with a warning, and the trailing incomplete codon is
+#'    ignored.
 #'
-#' This also sets the limit of what the function computes. There is no
-#' codon adaptation index here, no tRNA adaptation index, no effective
-#' number of codons and no codon usage table of any kind, neither
-#' bundled nor required. Those measures belong to codon optimisation,
-#' which is a different problem from UTR design and is already served
-#' well elsewhere.
+#' @return Returns a list of length thirteen containing:
+#' \itemize{
+#'   \item cds_length - An integer giving the length in nucleotides.
+#'   \item n_codons - An integer giving the number of complete
+#'      codons.
+#'   \item gc_content - A double giving the proportion of G or C over
+#'      the whole sequence.
+#'   \item gc3_content - A double giving the proportion of G or C at
+#'      third codon positions, reported separately because that
+#'      position is freest to vary without changing the protein.
+#'   \item starts_with_atg - A logical, TRUE if the first codon is
+#'      ATG.
+#'   \item ends_with_stop - A logical, TRUE if the last complete
+#'      codon is a stop codon.
+#'   \item is_multiple_of_three - A logical, TRUE if the length
+#'      divides by three.
+#'   \item has_premature_stop - A logical, TRUE if an in-frame stop
+#'      codon occurs before the last codon.
+#'   \item premature_stop_positions - An integer vector of the
+#'      1-based positions of those stop codons, length zero if none.
+#'   \item premature_stop_codons - A character vector naming which
+#'      stop codon was found at each position.
+#'   \item n_out_of_frame_atg - An integer giving how many ATGs do
+#'      not sit on a codon boundary.
+#'   \item out_of_frame_atg_positions - An integer vector of their
+#'      positions, length zero if none.
+#'   \item out_of_frame_atg_frames - An integer vector giving each
+#'      one's offset from the coding frame, 1 or 2.
+#' }
 #'
-#' For codon usage analysis and codon optimisation, use the
-#' \strong{cubar} package on CRAN:
-#' \url{https://CRAN.R-project.org/package=cubar}. It computes codon
-#' adaptation indices, tRNA adaptation weights and related statistics
-#' from a codon usage table, which is exactly the ground UTRunway does
-#' not cover. See Liu et al. (2025) in the references below.
+#' @examples
+#' # A construct with no planted premature stop codon.
+#' clean <- UTRunway::simulatedConstructs[1, ]
+#' UTRunway::profileCDS(cds = clean$cds)
 #'
-#' @details
-#' GC3 is the proportion of G or C at the third position of each
-#' complete codon. It is reported separately from overall GC content
-#' because the third position is the most free to vary without
-#' changing the protein, so the two figures can differ considerably in
-#' a sequence that has been recoded.
-#'
-#' A premature stop codon is an in-frame stop at any codon before the
-#' last one. The final codon is treated as the natural terminator
-#' whether or not it is a stop codon, which \code{ends_with_stop}
-#' reports separately.
-#'
-#' An out-of-frame AUG is an ATG whose first base does not fall on a
-#' codon boundary. Such an AUG can start a competing reading frame if
-#' it is reached by a scanning ribosome, which is why it is worth
-#' seeing next to the 5' UTR's upstream AUGs; see
-#' \code{\link{findUpstreamORFs}}.
-#'
-#' @param cds Character string of length one, the coding sequence.
-#'   Upper or lower case, DNA or RNA alphabet. A sequence whose length
-#'   is not a multiple of three is accepted with a warning, and the
-#'   trailing incomplete codon is ignored.
-#'
-#' @return A list of thirteen elements:
-#'   \describe{
-#'     \item{cds_length}{Integer. Length in nucleotides.}
-#'     \item{n_codons}{Integer. Number of complete codons.}
-#'     \item{gc_content}{Numeric. Proportion of G or C over the whole
-#'       sequence, between 0 and 1.}
-#'     \item{gc3_content}{Numeric. Proportion of G or C at third codon
-#'       positions, between 0 and 1.}
-#'     \item{starts_with_atg}{Logical. Whether the first codon is
-#'       \code{ATG}.}
-#'     \item{ends_with_stop}{Logical. Whether the last complete codon
-#'       is a stop codon.}
-#'     \item{is_multiple_of_three}{Logical. Whether the length divides
-#'       by three.}
-#'     \item{has_premature_stop}{Logical. Whether any in-frame stop
-#'       codon occurs before the last codon.}
-#'     \item{premature_stop_positions}{Integer vector. 1-based
-#'       positions of the first base of each premature stop codon, in
-#'       order. Length zero when there are none.}
-#'     \item{premature_stop_codons}{Character vector. Which stop codon
-#'       was found at each of those positions.}
-#'     \item{n_out_of_frame_atg}{Integer. How many ATGs do not sit on
-#'       a codon boundary.}
-#'     \item{out_of_frame_atg_positions}{Integer vector. 1-based
-#'       positions of those ATGs. Length zero when there are none.}
-#'     \item{out_of_frame_atg_frames}{Integer vector. For each, its
-#'       offset from the coding frame, \code{1} or \code{2}.}
-#'   }
+#' # CONSTRUCT_03 has one planted about 40 percent of the way in.
+#' truncated <- UTRunway::simulatedConstructs[3, ]
+#' cdsProfile <- UTRunway::profileCDS(cds = truncated$cds)
+#' cdsProfile$has_premature_stop
+#' cdsProfile$premature_stop_positions
+#' cdsProfile$premature_stop_codons
 #'
 #' @references
-#' Ikemura, T. (1985). Codon usage and tRNA content in unicellular and
-#' multicellular organisms. \emph{Molecular Biology and Evolution}
-#' 2(1), 13-34. \doi{10.1093/oxfordjournals.molbev.a040335}
+#' Ikemura, T. (1985). Codon usage and tRNA content in unicellular
+#' and multicellular organisms. \emph{Molecular Biology and
+#' Evolution}, 2(1), 13-34.
+#' \href{https://doi.org/10.1093/oxfordjournals.molbev.a040335}{Link}
 #'
 #' Kudla, G., Murray, A. W., Tollervey, D. and Plotkin, J. B. (2009).
 #' Coding-sequence determinants of gene expression in Escherichia
-#' coli. \emph{Science} 324(5924), 255-258.
-#' \doi{10.1126/science.1170160}
+#' coli. \emph{Science}, 324(5924), 255-258.
+#' \href{https://doi.org/10.1126/science.1170160}{Link}
 #'
-#' Liu, M., Zi, B., Zhang, H. and Zhang, H. (2025). cubar: a versatile
-#' package for codon usage bias analysis in R. \emph{Genetics},
-#' iyaf191. \doi{10.1093/genetics/iyaf191}
+#' Liu, M., Zi, B., Zhang, H. and Zhang, H. (2025). cubar: a
+#' versatile package for codon usage bias analysis in R.
+#' \emph{Genetics}, iyaf191.
+#' \href{https://doi.org/10.1093/genetics/iyaf191}{Link}
 #'
-#' For codon usage analysis and codon optimisation, which this package
-#' deliberately leaves out, see the cubar package:
-#' \url{https://CRAN.R-project.org/package=cubar}.
-#'
-#' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#'
-#' # A construct with no planted premature stop codon.
-#' clean <- simulatedConstructs[
-#'   simulatedConstructs$construct_id == "CONSTRUCT_01",
-#' ]
-#' profileCDS(cds = clean$cds)
-#'
-#' # CONSTRUCT_03 has one planted about 40 percent of the way in.
-#' truncated <- simulatedConstructs[
-#'   simulatedConstructs$construct_id == "CONSTRUCT_03",
-#' ]
-#' profile <- profileCDS(cds = truncated$cds)
-#' profile$has_premature_stop
-#' profile$premature_stop_positions
-#' profile$premature_stop_codons
-#'
-#' # GC content and GC3 compared across every candidate.
-#' data.frame(
-#'   construct_id = simulatedConstructs$construct_id,
-#'   gc = vapply(
-#'     X = simulatedConstructs$cds,
-#'     FUN = function(cds) profileCDS(cds = cds)$gc_content,
-#'     FUN.VALUE = numeric(1),
-#'     USE.NAMES = FALSE
-#'   ),
-#'   gc3 = vapply(
-#'     X = simulatedConstructs$cds,
-#'     FUN = function(cds) profileCDS(cds = cds)$gc3_content,
-#'     FUN.VALUE = numeric(1),
-#'     USE.NAMES = FALSE
-#'   )
-#' )
-#'
-#' @importFrom Biostrings DNAString letterFrequency
 #' @export
+#' @importFrom Biostrings DNAString letterFrequency
 profileCDS <- function(cds) {
   cds <- normaliseSequence(sequence = cds, arg_name = "cds")
 

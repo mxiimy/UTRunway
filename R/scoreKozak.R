@@ -31,103 +31,71 @@ kozakOffsets <- function() {
   c(-6L, -5L, -4L, -3L, -2L, -1L, 3L)
 }
 
-#' Score the Kozak Context of a Start Codon
+#' Score The Kozak Context Of A Start Codon
 #'
-#' @description
-#' Scores the sequence context around a start codon against a position
-#' weight matrix built from the Kozak consensus \code{gccRccAUGG}, and
-#' classifies it as strong, adequate or weak.
+#' A function that scores the sequence context around a start codon
+#' against a position weight matrix built from the Kozak consensus
+#' gccRccAUGG, and classifies it as strong, adequate or weak. The
+#' scored window runs from position -6 to -1 and then to position +4,
+#' counting the A of the AUG as +1; the three bases of the start
+#' codon are not scored because they are fixed. The categorical
+#' strength follows the rule that a purine at -3 and a G at +4 are
+#' the two positions that dominate initiation efficiency: both gives
+#' "strong", one gives "adequate", neither gives "weak".
 #'
-#' @details
-#' The scored window runs from position -6 to position -1 and then to
-#' position +4, counting the A of the AUG as +1. The three bases of the
-#' start codon itself are not scored, since they are fixed.
+#' @param sequence A character vector of length one giving the
+#'    sequence containing the start codon and its context. To score a
+#'    start codon in a construct, pass the 5' UTR and the coding
+#'    sequence pasted together so the window can reach both sides.
 #'
-#' The numeric score is a log-odds sum: for each scored position, the
-#' base-2 logarithm of the matrix probability for the observed base
-#' divided by 0.25, the probability under a uniform base composition. A
-#' score of zero therefore means the context is no better than chance,
-#' positive scores mean a better than random context, and negative
-#' scores a worse one. \code{score_scaled} places the same value on a
-#' zero to one scale between the worst and best contexts the matrix can
-#' award, which is the more convenient form for ranking.
+#' @param position A positive integer of length one giving the
+#'    1-based position in sequence of the A of the AUG to score.
 #'
-#' The categorical strength does not come from the score. It applies
-#' the rule that comes out of the mutational work directly, because the
-#' two positions concerned matter far more than the rest of the window:
-#'
+#' @return Returns a list of length four containing:
 #' \itemize{
-#'   \item \code{"strong"}: a purine (A or G) at -3 \strong{and} a G at
-#'     +4.
-#'   \item \code{"adequate"}: exactly one of those two.
-#'   \item \code{"weak"}: neither.
+#'   \item score - A double giving the log-odds score summed over the
+#'      seven scored positions, where zero means no better than
+#'      chance, or NA_real_ if the context window does not fit.
+#'   \item score_scaled - A double giving the same score on a zero to
+#'      one scale, or NA_real_.
+#'   \item strength - A character value, one of "strong",
+#'      "adequate" or "weak", or NA_character_.
+#'   \item context - A character value giving the scored context
+#'      written out, such as "gccacc ATG g", or NA_character_.
 #' }
-#'
-#' @param sequence Character string of length one, the sequence that
-#'   contains the start codon and its context. Upper or lower case, DNA
-#'   or RNA alphabet. To score a start codon in a construct, pass the
-#'   5' UTR and the coding sequence pasted together, so that the
-#'   context window can reach bases on both sides.
-#' @param position Single whole number, the 1-based position in
-#'   \code{sequence} of the A of the AUG to score.
-#'
-#' @return A list of four elements:
-#'   \describe{
-#'     \item{score}{Numeric. The log-odds score summed over the seven
-#'       scored positions, or \code{NA_real_} if the context window
-#'       does not fit inside \code{sequence}.}
-#'     \item{score_scaled}{Numeric. The same score placed on a zero to
-#'       one scale, or \code{NA_real_}.}
-#'     \item{strength}{Character. \code{"strong"}, \code{"adequate"} or
-#'       \code{"weak"}, or \code{NA_character_}.}
-#'     \item{context}{Character. The scored context written out as
-#'       \code{"gccacc ATG g"}, or \code{NA_character_}.}
-#'   }
-#'
-#' @section Sequences too short to score:
-#' A full context window needs six bases before the AUG and one base
-#' four positions after it. If either is missing, which is common for
-#' an upstream AUG close to the 5' end of a transcript, the function
-#' warns and returns \code{NA} in place of a score and a strength
-#' rather than failing. Callers that expect this, such as
-#' \code{\link{findUpstreamORFs}}, may suppress the warning.
-#'
-#' @references
-#' Kozak, M. (1986). Point mutations define a sequence flanking the AUG
-#' initiator codon that modulates translation by eukaryotic ribosomes.
-#' \emph{Cell} 44(2), 283-292. \doi{10.1016/0092-8674(86)90762-2}
-#'
-#' Kozak, M. (1987). An analysis of 5'-noncoding sequences from 699
-#' vertebrate messenger RNAs. \emph{Nucleic Acids Research} 15(20),
-#' 8125-8148. \doi{10.1093/nar/15.20.8125}
+#'    A full context window needs six bases before the AUG and one
+#'    base four positions after it. If either is missing, which is
+#'    common for an upstream AUG close to the 5' end, the function
+#'    warns and returns NA rather than failing.
 #'
 #' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#'
 #' # CONSTRUCT_04 carries a planted strong Kozak context. The main
 #' # start codon sits immediately after the 5' UTR.
-#' strong_row <- simulatedConstructs[
-#'   simulatedConstructs$construct_id == "CONSTRUCT_04",
-#' ]
-#' scoreKozak(
-#'   sequence = paste0(strong_row$utr5, strong_row$cds),
-#'   position = nchar(x = strong_row$utr5) + 1
-#' )
+#' strongRow <- UTRunway::simulatedConstructs[4, ]
+#' UTRunway::scoreKozak(
+#'    sequence = paste0(strongRow$utr5, strongRow$cds),
+#'    position = nchar(x = strongRow$utr5) + 1)
 #'
 #' # CONSTRUCT_07 carries a planted weak context, for comparison.
-#' weak_row <- simulatedConstructs[
-#'   simulatedConstructs$construct_id == "CONSTRUCT_07",
-#' ]
-#' scoreKozak(
-#'   sequence = paste0(weak_row$utr5, weak_row$cds),
-#'   position = nchar(x = weak_row$utr5) + 1
-#' )
+#' weakRow <- UTRunway::simulatedConstructs[7, ]
+#' UTRunway::scoreKozak(
+#'    sequence = paste0(weakRow$utr5, weakRow$cds),
+#'    position = nchar(x = weakRow$utr5) + 1)
 #'
-#' # A start codon too close to the 5' end to have a full context
-#' # window gives NA, with a warning.
+#' # A start codon too close to the 5' end for a full context window
+#' # returns NA, with a warning.
 #' suppressWarnings(
-#'   scoreKozak(sequence = "AATGGCCCCC", position = 2)
-#' )
+#'    UTRunway::scoreKozak(sequence = "AATGGCCCCC", position = 2))
+#'
+#' @references
+#' Kozak, M. (1986). Point mutations define a sequence flanking the
+#' AUG initiator codon that modulates translation by eukaryotic
+#' ribosomes. \emph{Cell}, 44(2), 283-292.
+#' \href{https://doi.org/10.1016/0092-8674(86)90762-2}{Link}
+#'
+#' Kozak, M. (1987). An analysis of 5'-noncoding sequences from 699
+#' vertebrate messenger RNAs. \emph{Nucleic Acids Research}, 15(20),
+#' 8125-8148. \href{https://doi.org/10.1093/nar/15.20.8125}{Link}
 #'
 #' @export
 scoreKozak <- function(sequence, position) {

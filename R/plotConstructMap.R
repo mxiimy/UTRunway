@@ -1,124 +1,67 @@
-#' Draw One Construct as an Annotated Map
+#' Draw One Construct As An Annotated Map
 #'
-#' @description
-#' Draws a single candidate construct on one shared coordinate axis:
-#' the three regions and their boundaries, every annotated feature in
-#' one track, and the sequence-only structure profile beneath. It is
-#' the package's signature figure, and the one place a whole design
-#' can be read at once.
+#' A function that draws a single candidate construct on one shared
+#' coordinate axis as three stacked tracks: the three regions and
+#' their boundaries, every annotated feature, and the sequence-only
+#' structure profile. Positions in the feature table are relative to
+#' each region, so the regions are laid end to end using the region
+#' lengths that are themselves rows of the table. Within the
+#' annotation track each class of feature occupies its own row, named
+#' on the axis, so identity rests on position and label rather than
+#' on colour: the six feature colours were measured pairwise under
+#' simulated colour vision deficiency and do not all separate when
+#' drawn together. The structure track is a proxy, not a folding
+#' prediction.
 #'
-#' @details
-#' Positions in the feature table are relative to each region, so the
-#' regions are laid end to end here, using the region lengths that
-#' are themselves rows of the table. The x axis is therefore the
-#' position in the whole construct, and every track shares it.
+#' @param feature_table A data frame produced by profileConstruct().
 #'
-#' Features from all three regions share a single annotation track,
-#' so a 5' UTR element and a 3' UTR element can be read against one
-#' ruler. A feature that can occur anywhere, such as a
-#' G-quadruplex-prone run, appears on one row wherever it falls
-#' rather than being split between regions.
+#' @param construct_id A character vector of length one naming the
+#'    construct to draw. It must appear in feature_table.
 #'
-#' @section Every feature class has its own labelled row:
-#' Within the annotation track, each class of feature occupies its
-#' own row, named on the axis. Identity therefore rests on where a
-#' mark sits and what its row is called, with colour and shape
-#' reinforcing. Nothing in the figure has to be read by telling two
-#' colours apart.
+#' @param show_cds_context A logical of length one. Whether to give
+#'    coding sequence features their own rows in the annotation
+#'    track. The map is a figure about untranslated region design and
+#'    coding sequence features are never scored, so they stay out of
+#'    it unless asked for; the region bar still shows where the
+#'    coding sequence begins and ends. Setting it to TRUE adds rows
+#'    for premature in-frame stop codons and out-of-frame ATGs, drawn
+#'    in grey and named as context. Default is FALSE.
 #'
-#' That is a requirement, not a nicety. The six feature colours were
-#' measured pairwise under simulated protanopia and deuteranopia, and
-#' while any three of them separate well, all six together do not:
-#' the closest pair measures 3.2 against a target of 8. Putting every
-#' feature in one track is what makes the labelled rows necessary.
+#' @return Returns a patchwork object, which prints as the assembled
+#'    figure and can be customised further like any ggplot2 object.
+#'    The individual tracks are accessible by position, so the second
+#'    element is the annotation track.
 #'
-#' The strength of each upstream AUG's own initiation context is part
-#' of its row name rather than a shade of one colour, for the same
-#' reason.
+#' @examples
+#' # CONSTRUCT_03 carries three upstream AUGs, two of which open
+#' # uORFs, and a premature stop codon in its coding sequence.
+#' features <- UTRunway::profileConstruct(
+#'    constructs = UTRunway::simulatedConstructs[c(3, 12), ])
+#' UTRunway::plotConstructMap(feature_table = features,
+#'                            construct_id = "CONSTRUCT_03")
 #'
-#' @section The coding sequence is left out by default:
-#' Coding sequence features are not drawn unless
-#' \code{show_cds_context = TRUE}. UTRunway ranks on untranslated
-#' region features alone, and this figure is about that design
-#' decision, so the coding sequence appears as a labelled span in the
-#' region bar and nothing more.
-#'
-#' Asking for them adds rows for premature in-frame stop codons and
-#' out-of-frame ATGs, drawn in grey and named as context so that
-#' nothing suggests they are being weighed. They never are. See
-#' \code{\link{profileCDS}}, which reports them in full, and
-#' \code{\link{rankCandidates}}, which excludes them from every
-#' score.
-#'
-#' @section The structure track is a proxy:
-#' The structure track shows sliding-window GC content with the
-#' windows holding a possible hairpin stem marked. This is a
-#' sequence-only proxy, not a folding prediction: see
-#' \code{\link{estimateStructure}} for what it does and does not
-#' establish.
-#'
-#' @param feature_table A tidy feature table from
-#'   \code{\link{profileConstruct}}.
-#' @param construct_id Character string of length one naming the
-#'   construct to draw. It must appear in \code{feature_table}.
-#' @param show_cds_context Single logical. Whether to give coding
-#'   sequence features their own rows in the annotation track.
-#'   Defaults to \code{FALSE}: the map is a figure about
-#'   untranslated region design, and coding sequence features are
-#'   never scored, so they stay out of it unless asked for. The
-#'   region bar still shows where the coding sequence begins and
-#'   ends.
-#'
-#'   Set it to \code{TRUE} to add rows for premature in-frame stop
-#'   codons and out-of-frame ATGs, drawn in grey and named as
-#'   context. Worth doing when checking a coding sequence rather than
-#'   comparing UTR designs, since a premature stop is a serious
-#'   fault even though nothing scores it. \code{\link{profileCDS}}
-#'   reports both whether or not they are drawn.
-#'
-#' @return A \pkg{patchwork} object, which prints as the assembled
-#'   figure and can be customised further like any \pkg{ggplot2}
-#'   object. The individual tracks are accessible by position, so
-#'   \code{map[[2]]} is the annotation track.
+#' # The premature stop is not drawn unless asked for, since nothing
+#' # scores it.
+#' UTRunway::plotConstructMap(feature_table = features,
+#'                            construct_id = "CONSTRUCT_03",
+#'                            show_cds_context = TRUE)
 #'
 #' @references
 #' Hinnebusch, A. G., Ivanov, I. P. and Sonenberg, N. (2016).
 #' Translational control by 5'-untranslated regions of eukaryotic
-#' mRNAs. \emph{Science} 352(6292), 1413-1416.
-#' \doi{10.1126/science.aad9868}
+#' mRNAs. \emph{Science}, 352(6292), 1413-1416.
+#' \href{https://doi.org/10.1126/science.aad9868}{Link}
 #'
 #' Mayr, C. (2019). What are 3' UTRs doing? \emph{Cold Spring Harbor
-#' Perspectives in Biology} 11(10), a034728.
-#' \doi{10.1101/cshperspect.a034728}
+#' Perspectives in Biology}, 11(10), a034728.
+#' \href{https://doi.org/10.1101/cshperspect.a034728}{Link}
 #'
-#' @examples
-#' data(simulatedConstructs, package = "UTRunway")
+#' Pedersen, T. L. (2025). \emph{patchwork: The Composer of Plots}.
+#' R package version 1.3.2.
+#' \href{https://CRAN.R-project.org/package=patchwork}{Link}
 #'
-#' # CONSTRUCT_03 carries three upstream AUGs, two of which open
-#' # uORFs, and a premature stop codon in its coding sequence.
-#' features <- profileConstruct(
-#'   constructs = simulatedConstructs[c(3, 12), ]
-#' )
-#' map <- plotConstructMap(
-#'   feature_table = features, construct_id = "CONSTRUCT_03"
-#' )
-#' map
-#'
-#' # CONSTRUCT_03 also carries a premature stop codon. It is not
-#' # drawn unless asked for, since nothing scores it.
-#' plotConstructMap(
-#'   feature_table = features,
-#'   construct_id = "CONSTRUCT_03",
-#'   show_cds_context = TRUE
-#' )
-#'
-#' # CONSTRUCT_12 carries nine AU-rich element pentamers instead.
-#' plotConstructMap(
-#'   feature_table = features, construct_id = "CONSTRUCT_12"
-#' )
-#'
-#' @importFrom ggplot2 .data
 #' @export
+#' @importFrom ggplot2 .data
 plotConstructMap <- function(feature_table, construct_id,
                              show_cds_context = FALSE) {
   validateFeatureTable(feature_table = feature_table)

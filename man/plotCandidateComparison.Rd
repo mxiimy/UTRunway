@@ -2,62 +2,50 @@
 % Please edit documentation in R/plotCandidateComparison.R
 \name{plotCandidateComparison}
 \alias{plotCandidateComparison}
-\title{Compare Every Candidate Across Every Feature at Once}
+\title{Compare Every Candidate Across Every Feature At Once}
 \usage{
 plotCandidateComparison(feature_table, highlight = NULL)
 }
 \arguments{
-\item{feature_table}{A tidy feature table from
-\code{\link{profileConstruct}}, holding at least two candidates.}
+\item{feature_table}{A data frame produced by profileConstruct(),
+holding at least two candidates.}
 
-\item{highlight}{Character vector of up to three construct
-identifiers to bring forward, or \code{NULL} to draw every
-candidate in grey.}
+\item{highlight}{A character vector of at most three construct
+identifiers to bring forward in colour and label, or NULL to
+draw every candidate in grey. Default is NULL.}
 }
 \value{
-A \pkg{ggplot2} object, which can be customised further.
+Returns a ggplot2 object faceted by region, with the
+   coding sequence panel shaded and labelled as context, which can
+   be customised further.
 }
 \description{
-Draws each candidate as a line across all of its region summary
-features, scaled so that features on different units can share one
-axis. It answers which candidates are unusual, and on what, before
-any weighting is chosen.
+A function that draws each candidate as a line across all of its
+region summary features, scaled so that features on different
+units can share one axis. It answers which candidates are unusual,
+and on what, before any weighting is chosen. Each feature is
+scaled so 0 is the lowest value in the set and 1 the highest; the
+scaling says nothing about which end is better, since direction
+belongs to scoring. Candidates are drawn in a recessive grey
+unless named, because one colour per candidate would be
+unreadable and only three colours of this palette separate
+reliably when all pairs are in play.
 }
-\details{
-Each feature is scaled to run from 0 at the lowest value in the
-set to 1 at the highest, exactly as \code{\link{rankCandidates}}
-scales it. \strong{The scaling says nothing about which end is
-better.} A high point is the largest value among these candidates,
-which is good for a canonical polyA signal and bad for upstream
-AUGs. Direction belongs to scoring, not to this figure; see
-\code{\link{rankCandidates}} for the direction of each feature.
-
-A feature on which every candidate is identical has no spread to
-scale, so it sits flat at the midpoint.
-}
-\section{Why candidates are grey unless you name them}{
-
-With more than a handful of candidates, one colour each would be
-unreadable, and this palette only separates three colours reliably
-when all pairs are in play. So every candidate is drawn in a
-recessive grey and up to three named ones are brought forward in
-colour and labelled. Comparing one design against the field is
-what the figure is for.
-}
-
 \examples{
-data(simulatedConstructs, package = "UTRunway")
-features <- profileConstruct(
-  constructs = simulatedConstructs[1:6, ]
-)
+features <- UTRunway::profileConstruct(
+   constructs = UTRunway::simulatedConstructs[1:6, ])
 
 # The whole field at once.
-plotCandidateComparison(feature_table = features)
+UTRunway::plotCandidateComparison(feature_table = features)
 
 # Two candidates brought forward against the rest.
-plotCandidateComparison(
-  feature_table = features,
-  highlight = c("CONSTRUCT_03", "CONSTRUCT_06")
-)
+UTRunway::plotCandidateComparison(
+   feature_table = features,
+   highlight = c("CONSTRUCT_03", "CONSTRUCT_06"))
 
+}
+\references{
+Wickham, H. (2016). \emph{ggplot2: Elegant Graphics for Data
+Analysis}. Springer-Verlag New York.
+\href{https://ggplot2.tidyverse.org}{Link}
 }

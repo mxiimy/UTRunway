@@ -2,95 +2,76 @@
 % Please edit documentation in R/rankCandidates.R
 \name{rankStability}
 \alias{rankStability}
-\title{How Stable a Ranking Is Under the Weights Chosen}
+\title{Measure How Stable A Ranking Is Under The Weights Chosen}
 \usage{
 rankStability(feature_table, n = 100, weights = NULL, concentration = 50)
 }
 \arguments{
-\item{feature_table}{A tidy feature table from
-\code{\link{profileConstruct}}, holding at least two candidates.}
+\item{feature_table}{A data frame produced by profileConstruct(),
+holding at least two candidates.}
 
-\item{n}{Single whole number, how many perturbed weightings to
-draw.}
+\item{n}{A positive integer of length one, at least 2, giving how
+many perturbed weightings to draw. Default is 100.}
 
-\item{weights}{Named numeric vector of weights to centre the draws
-on, or \code{NULL} for equal weighting. Interpreted exactly as in
-\code{\link{rankCandidates}}.}
+\item{weights}{A named numeric vector of weights to centre the
+draws on, interpreted exactly as in rankCandidates(), or NULL
+for equal weighting. Features given a weight of zero stay at
+zero, since excluding a feature is a decision rather than a
+quantity to perturb. Default is NULL.}
 
-\item{concentration}{Single positive number setting how tightly the
-drawn weights cluster around \code{weights}. Larger is tighter.}
+\item{concentration}{A positive double of length one setting how
+tightly the drawn weights cluster around weights. Larger is
+tighter. Default is 50.}
 }
 \value{
-An object of class \code{"utrunway_rank_stability"}: a list
-  with
-  \describe{
-    \item{distribution}{Data frame of \code{construct_id},
-      \code{rank}, \code{n_times} and \code{proportion}, covering
-      every candidate and rank combination, including those never
-      seen, so it can be drawn as a complete grid.}
-    \item{summary}{Data frame of \code{construct_id},
-      \code{base_rank} under the unperturbed weights, and the
-      \code{median_rank}, \code{min_rank}, \code{max_rank} and
-      \code{proportion_best} across the replicates, ordered by
-      median rank.}
-    \item{weights}{The centre weights used, summing to one.}
-    \item{n_replicates}{How many weightings were drawn.}
-    \item{concentration}{The concentration used.}
-  }
+Returns an object of class "utrunway_rank_stability", a
+   list of length five containing:
+\itemize{
+  \item distribution - A data frame of construct_id, rank,
+     n_times and proportion, covering every candidate and rank
+     combination including those never seen, so it can be drawn as
+     a complete grid.
+  \item summary - A data frame of construct_id, base_rank under
+     the unperturbed weights, and the median_rank, min_rank,
+     max_rank and proportion_best across the replicates, ordered
+     by median rank.
+  \item weights - A named numeric vector of the centre weights
+     used, summing to one.
+  \item n_replicates - An integer giving how many weightings were
+     drawn.
+  \item concentration - A double giving the concentration used.
+}
 }
 \description{
-Re-ranks the same candidates many times under randomly perturbed
-weights and reports the spread of each candidate's rank. A
-candidate that holds first place across most weightings is a
-genuinely strong candidate within the set; one whose rank swings
-widely was an artefact of the particular weights chosen.
-}
-\details{
+A function that re-ranks the same candidates many times under
+randomly perturbed weights and reports the spread of each
+candidate's rank. A candidate holding first place across most
+weightings is genuinely strong within the set; one whose rank
+swings widely was an artefact of the particular weights chosen.
 Weights are drawn from a Dirichlet distribution centred on the
 weights supplied, which keeps every draw non-negative and summing
-to one, as a set of weights must. \code{concentration} sets how
-tightly the draws cluster around the centre: a large value
-perturbs the weights gently, a small value explores widely.
-Features given a weight of zero stay at zero, since excluding a
-feature is a decision rather than a quantity to perturb.
-
-Normalisation of the features themselves does not depend on the
-weights, so it is done once and reused across every replicate.
+to one. This shows sensitivity to the weights only: it says
+nothing about whether the features or their directions are right,
+and nothing about experimental performance. The function draws
+random numbers, so call set.seed() before it for a reproducible
+result.
 }
-\section{Reproducibility}{
-
-This function draws random numbers. Call \code{set.seed()} before
-it if you need the same answer twice, and report the seed alongside
-the result.
-}
-
-\section{What it does and does not establish}{
-
-This shows how sensitive the ordering is to the weights, which is
-worth knowing before trusting any ranking built on chosen weights.
-It says nothing about whether the features or their directions are
-the right ones, and nothing about experimental performance. A
-ranking can be perfectly stable and still rest on the wrong
-assumptions.
-}
-
 \examples{
-data(simulatedConstructs, package = "UTRunway")
-features <- profileConstruct(
-  constructs = simulatedConstructs[1:6, ]
-)
+features <- UTRunway::profileConstruct(
+   constructs = UTRunway::simulatedConstructs[1:6, ])
 
 set.seed(seed = 1)
-stability <- rankStability(feature_table = features, n = 50)
-stability
+stability <- UTRunway::rankStability(feature_table = features,
+                                     n = 50)
+stability$summary
 
 # How often each candidate took first place.
-stability$summary[, c("construct_id", "base_rank", "proportion_best")]
+stability$summary[, c("construct_id", "base_rank",
+                      "proportion_best")]
 
-# Wider exploration of the weight space moves ranks around more.
-set.seed(seed = 1)
-rankStability(
-  feature_table = features, n = 50, concentration = 2
-)$summary
-
+}
+\references{
+R Core Team (2026). \emph{R: A Language and Environment for
+Statistical Computing}. R Foundation for Statistical Computing,
+Vienna, Austria. \href{https://www.R-project.org/}{Link}
 }

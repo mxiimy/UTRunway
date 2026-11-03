@@ -393,209 +393,93 @@ scoreFromMatrix <- function(normalised, weights) {
 
 #' Rank Candidate Constructs Against One Another
 #'
-#' @description
-#' Turns the tidy feature table into a ranked comparison of candidate
-#' designs, with a composite score for each candidate, the
-#' contribution every feature made to it, and the weights that
-#' produced it.
+#' A function that turns the tidy feature table into a ranked
+#' comparison of candidate designs, with a composite score for each
+#' candidate, the contribution every feature made to it, and the
+#' weights that produced it. This is a relative comparison within the
+#' submitted set under weights the caller chooses: each feature is
+#' scaled across the candidates supplied, so adding or removing a
+#' candidate changes everyone's scores. It does not predict that any
+#' candidate will perform well experimentally, because nothing in the
+#' package is fitted to measured outcomes. Rows where region is
+#' "cds" are filtered out before anything is scored, as are
+#' positional rows; twelve region summary features are scored, seven
+#' from the 5' UTR and five from the 3' UTR.
 #'
-#' @section What this ranking is and is not:
-#' \strong{This is a relative comparison within the submitted set,
-#' under weights the caller chooses.} Each feature is normalised across
-#' the candidates supplied, so a score says how a candidate compares
-#' with the others in this call and nothing more. Adding or removing a
-#' candidate changes everyone's scores, and changing the weights
-#' changes the order.
+#' @param feature_table A data frame produced by profileConstruct(),
+#'    holding at least two candidates.
 #'
-#' \strong{It does not predict that any candidate will perform well
-#' experimentally.} No part of this package is fitted to measured
-#' expression, translation or stability data; the directions it scores
-#' on are drawn from published sequence determinants, and a weighted
-#' sum of normalised sequence features is a design heuristic, not a
-#' model of outcome. Use it to narrow a list of candidates to test,
-#' and treat \code{\link{rankStability}} as the check on how much the
-#' order depends on the weights you chose.
+#' @param weights A named numeric vector of non-negative weights,
+#'    rescaled to sum to one, or NULL for equal weighting across
+#'    every scored feature. A scored feature left out of a supplied
+#'    vector is given no weight, so naming a few features ranks on
+#'    just those. Names may be region-qualified, as
+#'    "utr5.gc_content", or a bare feature name, which sets every
+#'    region that feature is scored in. Default is NULL.
 #'
-#' @section Scoring excludes the coding sequence:
-#' Rows where \code{region} is \code{"cds"} are filtered out before
-#' anything is scored, so no coding sequence feature can reach a
-#' score. This is deliberate and is the package's scope: UTRunway
-#' compares untranslated region designs around a coding sequence that
-#' has already been chosen. Coding sequence features are profiled and
-#' plotted as context only. For codon usage and codon optimisation,
-#' see the cubar package.
-#'
-#' Positional rows, such as individual motif occurrences and the
-#' sliding window profiles, are also filtered out: ranking uses the
-#' per-region summaries, and the counts among them already summarise
-#' the positional rows.
-#'
-#' @section Features scored, and which way round:
-#' \tabular{llr}{
-#'   \strong{region} \tab \strong{feature} \tab \strong{better when} \cr
-#'   utr5 \tab n_upstream_aug         \tab lower \cr
-#'   utr5 \tab n_upstream_orf         \tab lower \cr
-#'   utr5 \tab n_out_of_frame_overlap \tab lower \cr
-#'   utr5 \tab kozak_score_scaled     \tab higher \cr
-#'   utr5 \tab gc_content             \tab lower \cr
-#'   utr5 \tab max_stem_nt            \tab lower \cr
-#'   utr5 \tab n_motif_G_quadruplex   \tab lower \cr
-#'   utr3 \tab gc_content             \tab higher \cr
-#'   utr3 \tab n_are_pentamer         \tab lower \cr
-#'   utr3 \tab n_are_clustered        \tab lower \cr
-#'   utr3 \tab n_polya_canonical      \tab higher \cr
-#'   utr3 \tab n_mirna_seed           \tab lower
-#' }
-#'
-#' Note that \code{gc_content} is scored in opposite directions in the
-#' two untranslated regions, because it stands for different things
-#' there: structure that impedes scanning in the 5' UTR, and
-#' AU-richness that recruits decay factors in the 3' UTR. Note too
-#' that the 3' UTR GC content and the two AU-rich element counts
-#' measure overlapping tendencies, the first through composition and
-#' the others through a specific motif, so between them they carry
-#' three of the twelve default weights.
-#'
-#' @section Features deliberately left unscored:
-#' Some profiled features have no direction this package is willing to
-#' assert, and scoring them would dress a guess as a measurement:
-#'
+#' @return Returns an object of class "utrunway_ranking", a list of
+#'    length five containing:
 #' \itemize{
-#'   \item \code{length} in any region: neither longer nor shorter is
-#'     better in general.
-#'   \item \code{n_motif_TOP}: a TOP motif makes translation
-#'     responsive to growth signalling. That is a design decision,
-#'     not a quality.
-#'   \item \code{n_polya_signal}: counting every hexamer including
-#'     variants mixes a functional signal with alternative
-#'     polyadenylation, which cuts both ways.
-#'   \item \code{max_stem_nt} and \code{n_motif_G_quadruplex} in the
-#'     3' UTR: structure there can protect a transcript or help
-#'     destabilise it, so neither direction is safe to assert. The
-#'     3' UTR's \code{gc_content} \emph{is} scored, as composition
-#'     rather than as structure; see the table above.
-#'   \item \code{kozak_score} and \code{kozak_strength_ordinal}: the
-#'     same quantity as \code{kozak_score_scaled}. Scoring more than
-#'     one of them would count initiation context two or three times
-#'     over.
-#'   \item \code{max_window_gc}: largely the same signal as
-#'     \code{gc_content}, so scoring both would double count it.
+#'   \item ranking - A data frame of construct_id, score and rank,
+#'      ordered best first, where score lies between 0 and 1.
+#'   \item contributions - A data frame with one row per candidate
+#'      per scored feature, giving the value as profiled, the
+#'      normalised value after scaling and orientation, the
+#'      direction, the weight used, and the contribution to the
+#'      score.
+#'   \item weights - A named numeric vector of the weights used,
+#'      summing to one.
+#'   \item directions - A named integer vector giving the direction
+#'      applied to each scored feature, 1 where higher is better and
+#'      -1 where lower is.
+#'   \item n_candidates - An integer giving how many candidates were
+#'      compared.
 #' }
-#'
-#' @section How a score is computed:
-#' Each feature is scaled across the candidates to the range 0 to 1 by
-#' its own minimum and maximum, then flipped where a lower value is
-#' better, so that 1 is always the best of the set on that feature.
-#' The score is the weighted mean of those values, so it also lies
-#' between 0 and 1, and higher is better. Rank 1 is the highest score,
-#' with ties sharing the better rank.
-#'
-#' Two consequences worth knowing. A feature on which every candidate
-#' is identical has no spread to scale, so it is neutral at 0.5 for
-#' all of them and does not discriminate. And because scaling uses the
-#' minimum and maximum, one extreme candidate compresses the rest
-#' towards each other on that feature.
-#'
-#' @param feature_table A tidy feature table from
-#'   \code{\link{profileConstruct}}, holding at least two candidates.
-#' @param weights Named numeric vector of weights, or \code{NULL} for
-#'   equal weighting across every scored feature. Weights must be
-#'   non-negative and are rescaled to sum to one. A scored feature
-#'   left out of a supplied vector is given no weight, so naming a few
-#'   features is how to rank on just those.
-#'
-#'   Names may be region-qualified, as \code{"utr5.gc_content"}, or a
-#'   bare feature name. A bare name sets every region that feature is
-#'   scored in, which matters only for \code{gc_content}, the one
-#'   feature scored in both: \code{c(gc_content = 2)} weights it in
-#'   both untranslated regions, while \code{c(utr3.gc_content = 2)}
-#'   weights it in the 3' UTR alone. The returned weights are always
-#'   region-qualified, so the result records exactly which features
-#'   carried weight.
-#'
-#' @return An object of class \code{"utrunway_ranking"}: a list with
-#'   \describe{
-#'     \item{ranking}{Data frame of \code{construct_id}, \code{score}
-#'       and \code{rank}, ordered best first.}
-#'     \item{contributions}{Data frame with one row per candidate per
-#'       scored feature: \code{construct_id}, \code{region},
-#'       \code{feature}, \code{value} as profiled,
-#'       \code{normalised} after scaling and orientation,
-#'       \code{direction}, \code{weight} as used, and
-#'       \code{contribution}, the part of the score this feature
-#'       supplied.}
-#'     \item{weights}{The weights used, rescaled to sum to one.}
-#'     \item{directions}{The direction applied to each scored
-#'       feature.}
-#'     \item{n_candidates}{How many candidates were compared.}
-#'   }
-#'   The weights and directions are returned because a ranking is only
-#'   reproducible if the choices that produced it travel with it.
-#'
-#' @references
-#' Calvo, S. E., Pervouchine, D. D. and Mootha, V. K. (2009). Upstream
-#' open reading frames cause widespread reduction of protein expression
-#' and are polymorphic among humans. \emph{Proceedings of the National
-#' Academy of Sciences} 106(18), 7507-7512.
-#' \doi{10.1073/pnas.0810916106}
-#'
-#' Kozak, M. (1986). Point mutations define a sequence flanking the AUG
-#' initiator codon that modulates translation by eukaryotic ribosomes.
-#' \emph{Cell} 44(2), 283-292. \doi{10.1016/0092-8674(86)90762-2}
-#'
-#' Babendure, J. R., Babendure, J. L., Ding, J.-H. and Tsien, R. Y.
-#' (2006). Control of mammalian translation by mRNA structure near
-#' caps. \emph{RNA} 12(5), 851-861. \doi{10.1261/rna.2309906}
-#'
-#' Shaw, G. and Kamen, R. (1986). A conserved AU sequence from the 3'
-#' untranslated region of GM-CSF mRNA mediates selective mRNA
-#' degradation. \emph{Cell} 46(5), 659-667.
-#' \doi{10.1016/0092-8674(86)90341-7}
-#'
-#' Bartel, D. P. (2009). MicroRNAs: target recognition and regulatory
-#' functions. \emph{Cell} 136(2), 215-233.
-#' \doi{10.1016/j.cell.2009.01.002}
+#'    The weights and directions are returned because a ranking is
+#'    only reproducible if the choices that produced it travel with
+#'    it.
 #'
 #' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#' features <- profileConstruct(
-#'   constructs = simulatedConstructs[1:6, ]
-#' )
+#' features <- UTRunway::profileConstruct(
+#'    constructs = UTRunway::simulatedConstructs[1:6, ])
 #'
-#' ranking <- rankCandidates(feature_table = features)
-#' ranking
-#'
-#' # The ranked candidates, best first.
+#' ranking <- UTRunway::rankCandidates(feature_table = features)
 #' ranking$ranking
-#'
-#' # Why the leader leads: its largest feature contributions.
-#' leader <- ranking$ranking$construct_id[[1]]
-#' contributions <- ranking$contributions[
-#'   ranking$contributions$construct_id == leader,
-#' ]
-#' contributions[
-#'   order(contributions$contribution, decreasing = TRUE),
-#'   c("feature", "value", "normalised", "contribution")
-#' ]
 #'
 #' # The weights travel with the result, so a ranking can be traced
 #' # back to the choices behind it.
 #' ranking$weights
 #'
 #' # Rank on initiation context and upstream ORFs alone.
-#' rankCandidates(
-#'   feature_table = features,
-#'   weights = c(kozak_score_scaled = 2, n_upstream_orf = 1)
-#' )$ranking
+#' UTRunway::rankCandidates(
+#'    feature_table = features,
+#'    weights = c(kozak_score_scaled = 2,
+#'                n_upstream_orf = 1))$ranking
 #'
-#' # GC content is scored in both UTRs, so it can be weighted in one
-#' # of them by naming the region.
-#' rankCandidates(
-#'   feature_table = features,
-#'   weights = c(utr3.gc_content = 1, n_are_pentamer = 1)
-#' )$weights
+#' @references
+#' Babendure, J. R., Babendure, J. L., Ding, J.-H. and Tsien, R. Y.
+#' (2006). Control of mammalian translation by mRNA structure near
+#' caps. \emph{RNA}, 12(5), 851-861.
+#' \href{https://doi.org/10.1261/rna.2309906}{Link}
+#'
+#' Calvo, S. E., Pervouchine, D. D. and Mootha, V. K. (2009). Upstream
+#' open reading frames cause widespread reduction of protein
+#' expression and are polymorphic among humans. \emph{Proceedings of
+#' the National Academy of Sciences}, 106(18), 7507-7512.
+#' \href{https://doi.org/10.1073/pnas.0810916106}{Link}
+#'
+#' Kozak, M. (1986). Point mutations define a sequence flanking the
+#' AUG initiator codon that modulates translation by eukaryotic
+#' ribosomes. \emph{Cell}, 44(2), 283-292.
+#' \href{https://doi.org/10.1016/0092-8674(86)90762-2}{Link}
+#'
+#' Shaw, G. and Kamen, R. (1986). A conserved AU sequence from the 3'
+#' untranslated region of GM-CSF mRNA mediates selective mRNA
+#' degradation. \emph{Cell}, 46(5), 659-667.
+#' \href{https://doi.org/10.1016/0092-8674(86)90341-7}{Link}
 #'
 #' @export
+#' @importFrom stats setNames
 rankCandidates <- function(feature_table, weights = NULL) {
   validateFeatureTable(feature_table = feature_table)
 
@@ -699,17 +583,32 @@ validateFeatureTable <- function(feature_table) {
   invisible(x = TRUE)
 }
 
-#' Print a candidate ranking
+#' Print A Candidate Ranking
 #'
-#' @param x An object of class \code{"utrunway_ranking"}.
-#' @param ... Ignored, for consistency with the generic.
-#' @return \code{x}, invisibly.
+#' A function that prints an object of class "utrunway_ranking" at
+#' the console, showing how many candidates were compared, the ranked
+#' table, and the weights used, together with the statement that the
+#' comparison is relative to the submitted set under those weights
+#' and is not a prediction of experimental performance.
+#'
+#' @param x An object of class "utrunway_ranking" produced by
+#'    rankCandidates().
+#'
+#' @param ... Further arguments, ignored, present for consistency
+#'    with the print generic.
+#'
+#' @return Returns x invisibly, having printed a summary to the
+#'    console.
+#'
 #' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#' features <- profileConstruct(
-#'   constructs = simulatedConstructs[1:4, ]
-#' )
-#' print(x = rankCandidates(feature_table = features))
+#' features <- UTRunway::profileConstruct(
+#'    constructs = UTRunway::simulatedConstructs[1:4, ])
+#' print(x = UTRunway::rankCandidates(feature_table = features))
+#'
+#' @references
+#' R Core Team (2026). \emph{R: A Language and Environment for
+#' Statistical Computing}. R Foundation for Statistical Computing,
+#' Vienna, Austria. \href{https://www.R-project.org/}{Link}
 #'
 #' @export
 print.utrunway_ranking <- function(x, ...) {
@@ -726,87 +625,75 @@ print.utrunway_ranking <- function(x, ...) {
   invisible(x = x)
 }
 
-#' How Stable a Ranking Is Under the Weights Chosen
+#' Measure How Stable A Ranking Is Under The Weights Chosen
 #'
-#' @description
-#' Re-ranks the same candidates many times under randomly perturbed
-#' weights and reports the spread of each candidate's rank. A
-#' candidate that holds first place across most weightings is a
-#' genuinely strong candidate within the set; one whose rank swings
-#' widely was an artefact of the particular weights chosen.
-#'
-#' @details
+#' A function that re-ranks the same candidates many times under
+#' randomly perturbed weights and reports the spread of each
+#' candidate's rank. A candidate holding first place across most
+#' weightings is genuinely strong within the set; one whose rank
+#' swings widely was an artefact of the particular weights chosen.
 #' Weights are drawn from a Dirichlet distribution centred on the
 #' weights supplied, which keeps every draw non-negative and summing
-#' to one, as a set of weights must. \code{concentration} sets how
-#' tightly the draws cluster around the centre: a large value
-#' perturbs the weights gently, a small value explores widely.
-#' Features given a weight of zero stay at zero, since excluding a
-#' feature is a decision rather than a quantity to perturb.
+#' to one. This shows sensitivity to the weights only: it says
+#' nothing about whether the features or their directions are right,
+#' and nothing about experimental performance. The function draws
+#' random numbers, so call set.seed() before it for a reproducible
+#' result.
 #'
-#' Normalisation of the features themselves does not depend on the
-#' weights, so it is done once and reused across every replicate.
+#' @param feature_table A data frame produced by profileConstruct(),
+#'    holding at least two candidates.
 #'
-#' @section Reproducibility:
-#' This function draws random numbers. Call \code{set.seed()} before
-#' it if you need the same answer twice, and report the seed alongside
-#' the result.
+#' @param n A positive integer of length one, at least 2, giving how
+#'    many perturbed weightings to draw. Default is 100.
 #'
-#' @section What it does and does not establish:
-#' This shows how sensitive the ordering is to the weights, which is
-#' worth knowing before trusting any ranking built on chosen weights.
-#' It says nothing about whether the features or their directions are
-#' the right ones, and nothing about experimental performance. A
-#' ranking can be perfectly stable and still rest on the wrong
-#' assumptions.
+#' @param weights A named numeric vector of weights to centre the
+#'    draws on, interpreted exactly as in rankCandidates(), or NULL
+#'    for equal weighting. Features given a weight of zero stay at
+#'    zero, since excluding a feature is a decision rather than a
+#'    quantity to perturb. Default is NULL.
 #'
-#' @param feature_table A tidy feature table from
-#'   \code{\link{profileConstruct}}, holding at least two candidates.
-#' @param n Single whole number, how many perturbed weightings to
-#'   draw.
-#' @param weights Named numeric vector of weights to centre the draws
-#'   on, or \code{NULL} for equal weighting. Interpreted exactly as in
-#'   \code{\link{rankCandidates}}.
-#' @param concentration Single positive number setting how tightly the
-#'   drawn weights cluster around \code{weights}. Larger is tighter.
+#' @param concentration A positive double of length one setting how
+#'    tightly the drawn weights cluster around weights. Larger is
+#'    tighter. Default is 50.
 #'
-#' @return An object of class \code{"utrunway_rank_stability"}: a list
-#'   with
-#'   \describe{
-#'     \item{distribution}{Data frame of \code{construct_id},
-#'       \code{rank}, \code{n_times} and \code{proportion}, covering
-#'       every candidate and rank combination, including those never
-#'       seen, so it can be drawn as a complete grid.}
-#'     \item{summary}{Data frame of \code{construct_id},
-#'       \code{base_rank} under the unperturbed weights, and the
-#'       \code{median_rank}, \code{min_rank}, \code{max_rank} and
-#'       \code{proportion_best} across the replicates, ordered by
-#'       median rank.}
-#'     \item{weights}{The centre weights used, summing to one.}
-#'     \item{n_replicates}{How many weightings were drawn.}
-#'     \item{concentration}{The concentration used.}
-#'   }
+#' @return Returns an object of class "utrunway_rank_stability", a
+#'    list of length five containing:
+#' \itemize{
+#'   \item distribution - A data frame of construct_id, rank,
+#'      n_times and proportion, covering every candidate and rank
+#'      combination including those never seen, so it can be drawn as
+#'      a complete grid.
+#'   \item summary - A data frame of construct_id, base_rank under
+#'      the unperturbed weights, and the median_rank, min_rank,
+#'      max_rank and proportion_best across the replicates, ordered
+#'      by median rank.
+#'   \item weights - A named numeric vector of the centre weights
+#'      used, summing to one.
+#'   \item n_replicates - An integer giving how many weightings were
+#'      drawn.
+#'   \item concentration - A double giving the concentration used.
+#' }
 #'
 #' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#' features <- profileConstruct(
-#'   constructs = simulatedConstructs[1:6, ]
-#' )
+#' features <- UTRunway::profileConstruct(
+#'    constructs = UTRunway::simulatedConstructs[1:6, ])
 #'
 #' set.seed(seed = 1)
-#' stability <- rankStability(feature_table = features, n = 50)
-#' stability
+#' stability <- UTRunway::rankStability(feature_table = features,
+#'                                      n = 50)
+#' stability$summary
 #'
 #' # How often each candidate took first place.
-#' stability$summary[, c("construct_id", "base_rank", "proportion_best")]
+#' stability$summary[, c("construct_id", "base_rank",
+#'                       "proportion_best")]
 #'
-#' # Wider exploration of the weight space moves ranks around more.
-#' set.seed(seed = 1)
-#' rankStability(
-#'   feature_table = features, n = 50, concentration = 2
-#' )$summary
+#' @references
+#' R Core Team (2026). \emph{R: A Language and Environment for
+#' Statistical Computing}. R Foundation for Statistical Computing,
+#' Vienna, Austria. \href{https://www.R-project.org/}{Link}
 #'
 #' @export
+#' @importFrom stats median rgamma setNames
 rankStability <- function(feature_table, n = 100, weights = NULL,
                           concentration = 50) {
   validateFeatureTable(feature_table = feature_table)
@@ -904,18 +791,35 @@ rankStability <- function(feature_table, n = 100, weights = NULL,
   )
 }
 
-#' Print a rank stability summary
+#' Print A Rank Stability Summary
 #'
-#' @param x An object of class \code{"utrunway_rank_stability"}.
-#' @param ... Ignored, for consistency with the generic.
-#' @return \code{x}, invisibly.
+#' A function that prints an object of class
+#' "utrunway_rank_stability" at the console, showing how many
+#' perturbed weightings were drawn, the concentration used, and each
+#' candidate's base rank, median rank, range and proportion of first
+#' places, together with the statement that this measures sensitivity
+#' to the weights only.
+#'
+#' @param x An object of class "utrunway_rank_stability" produced
+#'    by rankStability().
+#'
+#' @param ... Further arguments, ignored, present for consistency
+#'    with the print generic.
+#'
+#' @return Returns x invisibly, having printed a summary to the
+#'    console.
+#'
 #' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#' features <- profileConstruct(
-#'   constructs = simulatedConstructs[1:4, ]
-#' )
+#' features <- UTRunway::profileConstruct(
+#'    constructs = UTRunway::simulatedConstructs[1:4, ])
 #' set.seed(seed = 1)
-#' print(x = rankStability(feature_table = features, n = 20))
+#' print(x = UTRunway::rankStability(feature_table = features,
+#'                                   n = 20))
+#'
+#' @references
+#' R Core Team (2026). \emph{R: A Language and Environment for
+#' Statistical Computing}. R Foundation for Statistical Computing,
+#' Vienna, Austria. \href{https://www.R-project.org/}{Link}
 #'
 #' @export
 print.utrunway_rank_stability <- function(x, ...) {

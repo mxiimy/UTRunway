@@ -1,67 +1,43 @@
-#' Plot Composition Along the Whole Construct
+#' Plot Composition Along The Whole Construct
 #'
-#' @description
-#' Draws the sliding-window GC content and the structure proxy along
-#' the whole construct, with the region boundaries marked, so that a
-#' compositional problem can be seen \emph{where} it sits rather than
-#' only as a number for the region it falls in.
+#' A function that draws the sliding-window GC content and the
+#' structure proxy along the whole construct, with the region
+#' boundaries marked, so a compositional problem can be seen where it
+#' sits rather than only as a number for the region it falls in. The
+#' two measures are drawn in separate panels rather than on two y
+#' axes, because GC content is a proportion and the complementary run
+#' is a length in nucleotides. The coding sequence GC3 is drawn as a
+#' level line spanning the coding sequence because that is what it
+#' is, one value for the region rather than a sliding window.
 #'
-#' @details
-#' The two measures are drawn in separate panels rather than on two y
-#' axes, because they are on different scales: GC content is a
-#' proportion and the complementary run is a length in nucleotides.
-#' Reading them against a shared x position is the point; forcing
-#' them onto one y axis would invite comparisons that mean nothing.
+#' @param feature_table A data frame produced by profileConstruct().
 #'
-#' Positions in the feature table are relative to each region, so the
-#' regions are laid end to end using the region lengths that are
-#' themselves rows of the table.
+#' @param construct_id A character vector of length one naming the
+#'    construct to draw. It must appear in feature_table.
 #'
-#' @section GC3 is a region value, not a profile:
-#' The coding sequence's GC3 is drawn as a level line spanning the
-#' coding sequence, because that is what it is: one value for the
-#' region, the proportion of G or C at third codon positions. It is
-#' not a sliding window and the line does not imply that GC3 varies
-#' the way it is drawn. It is there to be compared with the GC
-#' content running underneath it.
+#' @return Returns a ggplot2 object of two faceted panels sharing the
+#'    construct's coordinate axis, which can be customised further.
 #'
-#' @section What the structure panel does not show:
-#' The structure panel is a sequence-only proxy: the longest
-#' complementary run that could pair within each window. It is not a
-#' folding prediction and misses anything spanning more than one
-#' window. See \code{\link{estimateStructure}}.
-#'
-#' @param feature_table A tidy feature table from
-#'   \code{\link{profileConstruct}}.
-#' @param construct_id Character string of length one naming the
-#'   construct to draw. It must appear in \code{feature_table}.
-#'
-#' @return A \pkg{ggplot2} object, which can be customised further.
+#' @examples
+#' # CONSTRUCT_05 carries a planted G-quadruplex-prone run, which
+#' # shows as a GC-rich stretch in its 5' UTR.
+#' features <- UTRunway::profileConstruct(
+#'    constructs = UTRunway::simulatedConstructs[c(5, 10), ])
+#' UTRunway::plotRegionProfile(feature_table = features,
+#'                             construct_id = "CONSTRUCT_05")
 #'
 #' @references
 #' Babendure, J. R., Babendure, J. L., Ding, J.-H. and Tsien, R. Y.
 #' (2006). Control of mammalian translation by mRNA structure near
-#' caps. \emph{RNA} 12(5), 851-861. \doi{10.1261/rna.2309906}
+#' caps. \emph{RNA}, 12(5), 851-861.
+#' \href{https://doi.org/10.1261/rna.2309906}{Link}
 #'
-#' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#' features <- profileConstruct(
-#'   constructs = simulatedConstructs[c(5, 10), ]
-#' )
+#' Wickham, H. (2016). \emph{ggplot2: Elegant Graphics for Data
+#' Analysis}. Springer-Verlag New York.
+#' \href{https://ggplot2.tidyverse.org}{Link}
 #'
-#' # CONSTRUCT_05 carries a planted G-quadruplex-prone run, which
-#' # shows as a GC-rich stretch in its 5' UTR.
-#' plotRegionProfile(
-#'   feature_table = features, construct_id = "CONSTRUCT_05"
-#' )
-#'
-#' # The result is a ggplot object, so it takes further layers.
-#' plotRegionProfile(
-#'   feature_table = features, construct_id = "CONSTRUCT_10"
-#' ) + ggplot2::labs(subtitle = "A second candidate for comparison")
-#'
-#' @importFrom ggplot2 .data
 #' @export
+#' @importFrom ggplot2 .data
 plotRegionProfile <- function(feature_table, construct_id) {
   validateFeatureTable(feature_table = feature_table)
   construct_id <- validateConstructChoice(

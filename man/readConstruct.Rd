@@ -2,124 +2,76 @@
 % Please edit documentation in R/readConstruct.R
 \name{readConstruct}
 \alias{readConstruct}
-\title{Read and Validate Candidate mRNA Constructs}
+\title{Read And Validate Candidate mRNA Constructs}
 \usage{
 readConstruct(x)
 }
 \arguments{
-\item{x}{Either a path to a FASTA file, as a character string of
-length one, or a data frame with the columns
-\code{construct_id}, \code{utr5}, \code{cds} and \code{utr3}. Any
-further columns of a data frame are carried through unchanged, so
-that annotation travelling with the candidates is not lost. An
-object already returned by this function is passed back
-unchanged.}
+\item{x}{Either a character vector of length one giving the path
+to a FASTA file, or a data frame with the columns
+construct_id, utr5, cds and utr3. Further columns of a data
+frame are carried through unchanged. An object already returned
+by this function is passed back unchanged. In a FASTA file each
+region is a separate record whose header names the construct
+and the region, as in ">CONSTRUCT_01|region=utr5"; the
+shorter form ">CONSTRUCT_01|utr5" is accepted too.}
 }
 \value{
-A data frame of class \code{"utrunway_constructs"} with one
-  row per construct and at least these columns:
-  \describe{
-    \item{construct_id}{Character. The construct's identifier.}
-    \item{utr5}{Character. The 5' UTR, as upper-case DNA.}
-    \item{cds}{Character. The coding sequence, as upper-case DNA.}
-    \item{utr3}{Character. The 3' UTR, as upper-case DNA.}
-    \item{has_ambiguous}{Logical. Whether any region of this
-      construct contains an \code{N}.}
-  }
-  Columns beyond these come from a data frame input and are
-  returned as they were given.
+Returns a data frame of class "utrunway_constructs" with
+   one row per construct containing at least:
+\itemize{
+  \item construct_id - A character value giving the construct's
+     identifier, which must be non-empty and unique.
+  \item utr5 - A character value giving the 5' UTR as upper-case
+     DNA.
+  \item cds - A character value giving the coding sequence, which
+     must be a multiple of three, begin with ATG and end with a
+     stop codon.
+  \item utr3 - A character value giving the 3' UTR.
+  \item has_ambiguous - A logical, TRUE if any region contains an
+     N. Ambiguous bases warn rather than failing, because a design
+     may legitimately carry an undetermined position, but the
+     feature functions require unambiguous sequence.
+}
 }
 \description{
-Reads candidate construct designs from a FASTA file or a data
-frame, checks that each one is a usable three-part construct, and
-returns them as a validated object that the rest of the package can
-rely on without revalidating.
+A function that reads candidate construct designs from a FASTA
+file or a data frame, checks that each is a usable three-part
+construct, and returns them as a validated object the rest of the
+package relies on without revalidating. Sequences are upper-cased
+and U is rewritten to T, so downstream functions see only
+upper-case DNA. Every problem found across every construct is
+reported together in a single error, one per line, each naming the
+construct and region at fault, so a file with several mistakes
+needs one run to diagnose rather than one run per mistake.
 }
-\details{
-Sequences are normalised on the way in: upper-cased, and \code{U}
-rewritten to \code{T}, so that downstream functions only ever see
-upper-case DNA whether the input was written as DNA or RNA.
-
-Every construct is checked, and \strong{all} problems found across
-all constructs are reported together in a single error, one per
-line, each naming the construct and region at fault. Collecting
-them is deliberate: a file of twelve candidates with four mistakes
-should not have to be run five times to find them.
-
-The checks are:
-\itemize{
-  \item Each construct has a non-empty, unique identifier.
-  \item Each of the three regions is present and non-empty.
-  \item Sequences contain only \code{A}, \code{C}, \code{G},
-    \code{T}, \code{U} and \code{N}. Anything else is an error that
-    names the offending letters.
-  \item The coding sequence length is a multiple of three.
-  \item The coding sequence begins with \code{ATG}.
-  \item The coding sequence ends with a stop codon.
-}
-}
-\section{Ambiguous bases}{
-
-\code{N} is tolerated rather than rejected, because a candidate
-design may legitimately carry an undetermined position. It is not
-silent: a warning names every construct containing one, and the
-returned \code{has_ambiguous} column flags them, so a caller can
-drop or inspect them. Feature functions in this package require
-unambiguous sequence, so a construct flagged here may still fail
-later; the flag is what makes that predictable.
-}
-
-\section{FASTA header format}{
-
-Each region is a separate record, and the header names the
-construct and the region, separated by a vertical bar:
-
-\preformatted{>CONSTRUCT_01|region=utr5
->CONSTRUCT_01|region=cds
->CONSTRUCT_01|region=utr3}
-
-The shorter form \code{>CONSTRUCT_01|utr5} is accepted too. The
-region must be one of \code{utr5}, \code{cds} or \code{utr3}, and
-each construct must have exactly one record for each of the three.
-}
-
 \examples{
 # From the FASTA file shipped with the package.
-fasta_path <- system.file(
-  "extdata", "exampleConstructs.fasta",
-  package = "UTRunway"
-)
-constructs <- readConstruct(x = fasta_path)
+fastaPath <- system.file("extdata", "exampleConstructs.fasta",
+                         package = "UTRunway")
+constructs <- UTRunway::readConstruct(x = fastaPath)
 constructs$construct_id
 nchar(x = constructs$utr5)
 
 # From a data frame, such as the bundled dataset. Its extra
 # ground-truth columns are carried through.
-data(simulatedConstructs, package = "UTRunway")
-from_frame <- readConstruct(x = simulatedConstructs)
-class(x = from_frame)
-names(x = from_frame)[1:5]
+fromFrame <- UTRunway::readConstruct(
+   x = UTRunway::simulatedConstructs)
+class(x = fromFrame)
 
 # RNA input is accepted and normalised to DNA.
-readConstruct(
-  x = data.frame(
-    construct_id = "rna_input",
-    utr5 = "gccaccgccacc",
-    cds = "auggccuaa",
-    utr3 = "aauaaaccc"
-  )
-)$cds
+UTRunway::readConstruct(x = data.frame(construct_id = "rna",
+                                       utr5 = "gccaccgccacc",
+                                       cds = "auggccuaa",
+                                       utr3 = "aauaaaccc"))$cds
 
-# Every problem is reported at once, naming each construct.
-try(
-  readConstruct(
-    x = data.frame(
-      construct_id = c("good", "bad_frame"),
-      utr5 = c("GCCACC", "GCCACC"),
-      cds = c("ATGGCCTAA", "ATGGCCTA"),
-      utr3 = c("AATAAA", "AATAAA")
-    )
-  )
-)
+}
+\references{
+Pagès, H., Aboyoun, P., Gentleman, R. and DebRoy, S. (2026).
+\emph{Biostrings: Efficient manipulation of biological strings}.
+R package version 2.80.2.
+\href{https://doi.org/10.18129/B9.bioc.Biostrings}{Link}
 
+Wickham, H. and Bryan, J. (2023). \emph{R Packages} (2nd ed.).
+O'Reilly Media. \href{https://r-pkgs.org/}{Link}
 }

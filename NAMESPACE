@@ -28,3 +28,8 @@ importFrom(IRanges,
   start
 )
 importFrom(ggplot2,.data)
+importFrom(stats,
+  median,
+  rgamma,
+  setNames
+)

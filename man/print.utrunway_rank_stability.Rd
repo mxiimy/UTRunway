@@ -2,27 +2,39 @@
 % Please edit documentation in R/rankCandidates.R
 \name{print.utrunway_rank_stability}
 \alias{print.utrunway_rank_stability}
-\title{Print a rank stability summary}
+\title{Print A Rank Stability Summary}
 \usage{
 \method{print}{utrunway_rank_stability}(x, ...)
 }
 \arguments{
-\item{x}{An object of class \code{"utrunway_rank_stability"}.}
+\item{x}{An object of class "utrunway_rank_stability" produced
+by rankStability().}
 
-\item{...}{Ignored, for consistency with the generic.}
+\item{...}{Further arguments, ignored, present for consistency
+with the print generic.}
 }
 \value{
-\code{x}, invisibly.
+Returns x invisibly, having printed a summary to the
+   console.
 }
 \description{
-Print a rank stability summary
+A function that prints an object of class
+"utrunway_rank_stability" at the console, showing how many
+perturbed weightings were drawn, the concentration used, and each
+candidate's base rank, median rank, range and proportion of first
+places, together with the statement that this measures sensitivity
+to the weights only.
 }
 \examples{
-data(simulatedConstructs, package = "UTRunway")
-features <- profileConstruct(
-  constructs = simulatedConstructs[1:4, ]
-)
+features <- UTRunway::profileConstruct(
+   constructs = UTRunway::simulatedConstructs[1:4, ])
 set.seed(seed = 1)
-print(x = rankStability(feature_table = features, n = 20))
+print(x = UTRunway::rankStability(feature_table = features,
+                                  n = 20))
 
+}
+\references{
+R Core Team (2026). \emph{R: A Language and Environment for
+Statistical Computing}. R Foundation for Statistical Computing,
+Vienna, Austria. \href{https://www.R-project.org/}{Link}
 }

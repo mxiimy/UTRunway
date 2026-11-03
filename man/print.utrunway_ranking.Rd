@@ -2,26 +2,36 @@
 % Please edit documentation in R/rankCandidates.R
 \name{print.utrunway_ranking}
 \alias{print.utrunway_ranking}
-\title{Print a candidate ranking}
+\title{Print A Candidate Ranking}
 \usage{
 \method{print}{utrunway_ranking}(x, ...)
 }
 \arguments{
-\item{x}{An object of class \code{"utrunway_ranking"}.}
+\item{x}{An object of class "utrunway_ranking" produced by
+rankCandidates().}
 
-\item{...}{Ignored, for consistency with the generic.}
+\item{...}{Further arguments, ignored, present for consistency
+with the print generic.}
 }
 \value{
-\code{x}, invisibly.
+Returns x invisibly, having printed a summary to the
+   console.
 }
 \description{
-Print a candidate ranking
+A function that prints an object of class "utrunway_ranking" at
+the console, showing how many candidates were compared, the ranked
+table, and the weights used, together with the statement that the
+comparison is relative to the submitted set under those weights
+and is not a prediction of experimental performance.
 }
 \examples{
-data(simulatedConstructs, package = "UTRunway")
-features <- profileConstruct(
-  constructs = simulatedConstructs[1:4, ]
-)
-print(x = rankCandidates(feature_table = features))
+features <- UTRunway::profileConstruct(
+   constructs = UTRunway::simulatedConstructs[1:4, ])
+print(x = UTRunway::rankCandidates(feature_table = features))
 
+}
+\references{
+R Core Team (2026). \emph{R: A Language and Environment for
+Statistical Computing}. R Foundation for Statistical Computing,
+Vienna, Austria. \href{https://www.R-project.org/}{Link}
 }

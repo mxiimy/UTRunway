@@ -2,131 +2,89 @@
 % Please edit documentation in R/findUpstreamORFs.R
 \name{findUpstreamORFs}
 \alias{findUpstreamORFs}
-\title{Locate Upstream AUGs and Upstream Open Reading Frames in a 5' UTR}
+\title{Locate Upstream AUGs And Upstream Open Reading Frames}
 \usage{
 findUpstreamORFs(utr5, cds = NULL)
 }
 \arguments{
-\item{utr5}{Character string of length one, the 5' UTR sequence.
-Upper or lower case, DNA or RNA alphabet.}
+\item{utr5}{A character vector of length one giving the 5' UTR
+sequence. Upper or lower case is accepted, as is the DNA or the
+RNA alphabet, but ambiguous bases are not.}
 
-\item{cds}{Character string of length one, the coding sequence, or
-\code{NULL}. The coding sequence is used only to complete the
-Kozak context window of an upstream AUG lying within four
-nucleotides of the end of the 5' UTR. Supplying it does not change
-which AUGs or uORFs are found. When it is \code{NULL}, such an AUG
-gets \code{NA} for its Kozak columns.}
+\item{cds}{A character vector of length one giving the coding
+sequence, or NULL. It is used only to complete the Kozak
+context window of an upstream AUG lying within four nucleotides
+of the end of the 5' UTR, and does not change which AUGs or
+uORFs are found. Default is NULL.}
 }
 \value{
-A data frame with one row per upstream AUG, ordered by
-  position, and these columns:
-  \describe{
-    \item{aug_position}{Integer. 1-based position in \code{utr5} of
-      the A of the upstream AUG.}
-    \item{distance_to_cds}{Integer. Nucleotides from the A of the
-      upstream AUG to the A of the main start codon.}
-    \item{frame}{Integer. Frame relative to the main start codon:
-      \code{0} if in frame with it, otherwise \code{1} or \code{2}.}
-    \item{in_frame_with_cds}{Logical. \code{TRUE} when \code{frame}
-      is \code{0}.}
-    \item{opens_uorf}{Logical. \code{TRUE} if an in-frame stop codon
-      lies wholly inside the 5' UTR, so the uORF terminates before
-      the coding sequence.}
-    \item{stop_position}{Integer. 1-based position in \code{utr5} of
-      the first base of that stop codon, or \code{NA_integer_}.}
-    \item{uorf_length_nt}{Integer. Length of the uORF in
-      nucleotides from the A of the AUG through the last base of the
-      stop codon inclusive, or \code{NA_integer_}.}
-    \item{extends_into_cds}{Logical. \code{TRUE} if the reading
-      frame from this AUG reaches the end of the 5' UTR without
-      terminating, so it continues past the main start codon.}
-    \item{out_of_frame_overlap}{Logical. \code{TRUE} if the AUG both
-      extends into the coding sequence and is out of frame with the
-      main start codon.}
-    \item{kozak_score}{Numeric. Log-odds Kozak score of this
-      upstream start codon, from \code{\link{scoreKozak}}, or
-      \code{NA_real_} where the context window does not fit.}
-    \item{kozak_strength}{Character. \code{"strong"},
-      \code{"adequate"}, \code{"weak"} or \code{NA_character_}.}
-  }
-  When the 5' UTR contains no AUG, the same data frame is returned
-  with zero rows and these columns and types, never \code{NULL}.
+Returns a data frame of class "data.frame" with one row
+   per upstream AUG, ordered by position, containing:
+\itemize{
+  \item aug_position - An integer giving the 1-based position in
+     utr5 of the A of the upstream AUG.
+  \item distance_to_cds - An integer giving the nucleotides from
+     that A to the A of the main start codon.
+  \item frame - An integer, 0 if in frame with the main start
+     codon, otherwise 1 or 2.
+  \item in_frame_with_cds - A logical, TRUE when frame is 0.
+  \item opens_uorf - A logical, TRUE if an in-frame stop codon
+     lies wholly inside the 5' UTR.
+  \item stop_position - An integer giving the position of that
+     stop codon, or NA.
+  \item uorf_length_nt - An integer giving the uORF length in
+     nucleotides including the stop codon, or NA.
+  \item extends_into_cds - A logical, TRUE if the reading frame
+     reaches the end of the 5' UTR without terminating.
+  \item out_of_frame_overlap - A logical, TRUE if the AUG both
+     extends into the coding sequence and is out of frame with it.
+  \item kozak_score - A double giving the log-odds Kozak score of
+     this upstream start, or NA where the context window does not
+     fit.
+  \item kozak_strength - A character value, one of "strong",
+     "adequate", "weak" or NA.
+}
+   When the 5' UTR contains no AUG, the same data frame is returned
+   with zero rows and these columns, never NULL.
 }
 \description{
-Finds every AUG in a 5' UTR and describes what each one does: the
-frame it sits in relative to the main start codon, whether it opens
-an upstream open reading frame (uORF) that terminates before the
-coding sequence begins, and how strong its own initiation context
-is.
+A function that finds every AUG in a 5' untranslated region (UTR)
+and describes what each one does. For each upstream AUG the frame
+relative to the main start codon is reported, together with
+whether it opens an upstream open reading frame (uORF) that
+terminates before the coding sequence begins, the length of that
+uORF, whether its reading frame instead runs through the main
+start codon, and the strength of its own initiation context.
+Overlapping and nested uORFs are each reported in their own row.
 }
-\details{
-Every AUG is reported in its own row, whether or not other AUGs lie
-nearby, so overlapping and nested uORFs are all described rather
-than collapsed into one call. A uORF nested inside a longer one
-appears as a separate row, as does each AUG of a pair that share a
-stop codon.
-
-An upstream AUG falls into one of three cases, distinguished by
-\code{opens_uorf} and \code{frame}:
-
-\itemize{
-  \item It reaches an in-frame stop codon inside the 5' UTR, so it
-    opens a self-contained uORF. \code{opens_uorf} is \code{TRUE}.
-  \item It has no in-frame stop codon before the UTR ends and is out
-    of frame with the main start codon, so its reading frame runs
-    through the start codon and into the coding sequence in the
-    wrong frame. \code{out_of_frame_overlap} is \code{TRUE}.
-  \item It has no in-frame stop codon before the UTR ends and is in
-    frame with the main start codon, so it acts as an N-terminal
-    extension of the main reading frame. \code{extends_into_cds} is
-    \code{TRUE} and \code{frame} is \code{0}.
-}
-
-Positions are 1-based and are given relative to the 5' UTR, not to
-the whole construct.
-}
-\section{Kozak context near the 5' end}{
-
-An upstream AUG within six nucleotides of the 5' end has no complete
-context window, so its Kozak columns are \code{NA}. This is expected
-rather than an error, and the warning \code{\link{scoreKozak}} would
-raise is suppressed here.
-}
-
 \examples{
-data(simulatedConstructs, package = "UTRunway")
+# CONSTRUCT_03 carries three planted upstream AUGs, two of which
+# open uORFs terminating inside the 5' UTR.
+withUorfs <- UTRunway::simulatedConstructs[3, ]
+UTRunway::findUpstreamORFs(utr5 = withUorfs$utr5,
+                           cds = withUorfs$cds)
 
-# CONSTRUCT_03 has three planted upstream AUGs, two of which open
-# uORFs that terminate inside the 5' UTR.
-with_uorfs <- simulatedConstructs[
-  simulatedConstructs$construct_id == "CONSTRUCT_03",
-]
-findUpstreamORFs(utr5 = with_uorfs$utr5, cds = with_uorfs$cds)
+# CONSTRUCT_05 carries none, so a zero-row data frame is returned.
+withoutUorfs <- UTRunway::simulatedConstructs[5, ]
+UTRunway::findUpstreamORFs(utr5 = withoutUorfs$utr5)
 
-# CONSTRUCT_05 has none, so the result has zero rows but the same
-# columns.
-without_uorfs <- simulatedConstructs[
-  simulatedConstructs$construct_id == "CONSTRUCT_05",
-]
-findUpstreamORFs(utr5 = without_uorfs$utr5)
-
-# Nested and overlapping starts are each reported in their own row.
-findUpstreamORFs(utr5 = "ATGATGAAATAACCGGTTACGTACGTACG")
+# Nested and overlapping starts are each given their own row.
+UTRunway::findUpstreamORFs(utr5 = "ATGATGAAATAACCGGTTACGTACGTACG")
 
 }
 \references{
 Calvo, S. E., Pervouchine, D. D. and Mootha, V. K. (2009). Upstream
-open reading frames cause widespread reduction of protein expression
-and are polymorphic among humans. \emph{Proceedings of the National
-Academy of Sciences} 106(18), 7507-7512.
-\doi{10.1073/pnas.0810916106}
+open reading frames cause widespread reduction of protein
+expression and are polymorphic among humans. \emph{Proceedings of
+the National Academy of Sciences}, 106(18), 7507-7512.
+\href{https://doi.org/10.1073/pnas.0810916106}{Link}
 
 Hinnebusch, A. G., Ivanov, I. P. and Sonenberg, N. (2016).
 Translational control by 5'-untranslated regions of eukaryotic
-mRNAs. \emph{Science} 352(6292), 1413-1416.
-\doi{10.1126/science.aad9868}
+mRNAs. \emph{Science}, 352(6292), 1413-1416.
+\href{https://doi.org/10.1126/science.aad9868}{Link}
 
 Kozak, M. (1987). An analysis of 5'-noncoding sequences from 699
-vertebrate messenger RNAs. \emph{Nucleic Acids Research} 15(20),
-8125-8148. \doi{10.1093/nar/15.20.8125}
+vertebrate messenger RNAs. \emph{Nucleic Acids Research}, 15(20),
+8125-8148. \href{https://doi.org/10.1093/nar/15.20.8125}{Link}
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/scanDecayElements.R
 \name{scanDecayElements}
 \alias{scanDecayElements}
-\title{Scan a 3' UTR for Decay and Repression Elements}
+\title{Scan A 3' UTR For Decay And Repression Elements}
 \usage{
 scanDecayElements(
   utr3,
@@ -12,205 +12,98 @@ scanDecayElements(
 )
 }
 \arguments{
-\item{utr3}{Character string of length one, the 3' UTR sequence.
-Upper or lower case, DNA or RNA alphabet.}
+\item{utr3}{A character vector of length one giving the 3' UTR
+sequence. Upper or lower case is accepted, as is the DNA or the
+RNA alphabet.}
 
-\item{seeds}{Named character vector of miRNA seed match sites, as
-IUPAC nucleotide patterns, or \code{NULL} to use the default set
-of five well-characterised families. Pass
-\code{character(0)} to skip the miRNA scan entirely.}
+\item{seeds}{A named character vector of miRNA seed match sites
+written as IUPAC nucleotide patterns, or NULL to use the
+default set of five well-characterised families, or
+character(0) to skip the miRNA scan. Default is NULL.}
 
-\item{polya_end_window}{Single whole number of nucleotides. A
-polyA signal ending within this many nucleotides of the 3' end is
-flagged as \code{near_three_prime_end}. The default of \code{30}
-covers the 10 to 30 nucleotide spacing at which a functional
-signal sits upstream of the cleavage site. This window is
-absolute rather than a fraction of the region's length, because
-that spacing does not scale with the length of the 3' UTR.}
+\item{polya_end_window}{A non-negative integer of length one. A
+polyA signal ending within this many nucleotides of the 3' end
+is flagged as near_three_prime_end. The window is absolute
+rather than a fraction of region length, because a functional
+signal sits 10 to 30 nucleotides upstream of the cleavage site
+whatever the length of the UTR. Default is 30.}
 
-\item{are_cluster_fraction}{Single number between 0 and 1. Two
-AUUUA pentamers starting within this fraction of the region's
-length count as clustered. Defaults to \code{0.05}.}
+\item{are_cluster_fraction}{A double of length one between 0 and 1
+giving the fraction of the region's length within which two
+AUUUA pentamers count as clustered. Default is 0.05.}
 }
 \value{
-A data frame with one row per element, ordered by position,
-  and these columns:
-  \describe{
-    \item{element_type}{Character. \code{"polyA_signal"},
-      \code{"ARE_pentamer"} or \code{"miRNA_seed"}.}
-    \item{element_name}{Character. The specific element: the hexamer
-      for a polyA signal, \code{"AUUUA"} for an AU-rich pentamer, or
-      the miRNA family name for a seed match.}
-    \item{start}{Integer. 1-based position of the first nucleotide.}
-    \item{end}{Integer. 1-based position of the last nucleotide.}
-    \item{width}{Integer. Element length in nucleotides.}
-    \item{sequence}{Character. The matched sequence as it occurs in
-      \code{utr3}.}
-    \item{distance_to_end}{Integer. Nucleotides from the element's
-      last base to the last base of the 3' UTR.}
-    \item{is_canonical}{Logical. For a polyA signal, \code{TRUE} for
-      \code{AATAAA} and \code{FALSE} for \code{ATTAAA};
-      \code{NA} for other element types.}
-    \item{near_three_prime_end}{Logical. \code{TRUE} if the element
-      ends within \code{polya_end_window} nucleotides of the 3'
-      end. Reported for every element type, since it is a plain
-      distance test, but it is interpreted chiefly for polyA
-      signals.}
-    \item{in_cluster}{Logical. For an AU-rich pentamer, \code{TRUE}
-      if another pentamer starts within
-      \code{are_cluster_fraction} of the region's length;
-      \code{NA} for other element types, and \code{FALSE} for a
-      lone pentamer.}
-    \item{distance_to_nearest_are}{Integer. For an AU-rich
-      pentamer, the distance in nucleotides to the nearest other
-      pentamer's start. \code{NA} for other element types and for a
-      lone pentamer. Reported so that a different clustering rule
-      can be applied without rescanning.}
-  }
-  When nothing is found, the same data frame is returned with zero
-  rows and these columns and types, never \code{NULL}.
+Returns a data frame of class "data.frame" with one row
+   per element, ordered by position, containing:
+\itemize{
+  \item element_type - A character value, one of
+     "polyA_signal", "ARE_pentamer" or "miRNA_seed".
+  \item element_name - A character value giving the hexamer, the
+     pentamer, or the miRNA family name.
+  \item start, end - Integers giving the 1-based positions of the
+     element's first and last nucleotides.
+  \item width - An integer giving its length in nucleotides.
+  \item sequence - A character value giving the matched sequence.
+  \item distance_to_end - An integer giving the nucleotides from
+     the element's last base to the end of the UTR.
+  \item is_canonical - A logical, TRUE for AAUAAA and FALSE for
+     AUUAAA, NA for other element types.
+  \item near_three_prime_end - A logical, TRUE if the element ends
+     within polya_end_window of the 3' end.
+  \item in_cluster - A logical, TRUE for a pentamer with another
+     nearby, NA for other element types.
+  \item distance_to_nearest_are - An integer giving the distance
+     to the nearest other pentamer, or NA.
+}
+   When nothing is found, the same data frame is returned with
+   zero rows, never NULL.
 }
 \description{
-Finds the 3' UTR elements that govern transcript stability and
-repression: polyadenylation signals, AU-rich elements, and miRNA
-seed match sites.
+A function that finds the 3' untranslated region (UTR) elements
+governing transcript stability and repression: polyadenylation
+signals, AU-rich elements and miRNA seed match sites. Every
+element is reported in its own row, and overlapping matches are
+kept, because overlapping AUUUA pentamers are the characteristic
+form of a strong AU-rich element rather than a redundant double
+count. These are sequence matches only: an AAUAAA hexamer far from
+the 3' end may not be used, and a miRNA seed match is necessary
+but far from sufficient for repression.
 }
-\details{
-Every element found is reported in its own row. Overlapping matches
-are all kept, because overlapping AUUUA pentamers are the
-characteristic form of a strong AU-rich element rather than a
-redundant double count.
-
-Three element types are reported in \code{element_type}:
-
-\describe{
-  \item{\code{"polyA_signal"}}{The canonical hexamer \code{AATAAA}
-    and the common variant \code{ATTAAA}. \code{is_canonical}
-    distinguishes them. A functional signal normally lies a short
-    distance upstream of the cleavage site, so
-    \code{near_three_prime_end} flags signals ending within
-    \code{polya_end_window} nucleotides of the 3' end.}
-  \item{\code{"ARE_pentamer"}}{The \code{AUUUA} pentamer of an
-    AU-rich element. \code{in_cluster} flags a pentamer with
-    another pentamer starting within \code{are_cluster_fraction} of
-    the region's length, since clustered and overlapping repeats
-    drive decay far more strongly than an isolated pentamer does.}
-  \item{\code{"miRNA_seed"}}{A match to one of the seed sites in
-    \code{seeds}. \code{element_name} gives the miRNA family.}
-}
-
-The two summaries the caller usually wants come straight off the
-result. Whether a canonical polyA signal is present near the 3' end:
-
-\preformatted{any(elements$is_canonical &
-    elements$near_three_prime_end, na.rm = TRUE)}
-
-and the AU-rich element count, with whether any of them cluster:
-
-\preformatted{sum(elements$element_type == "ARE_pentamer")
-any(elements$in_cluster, na.rm = TRUE)}
-}
-\section{A match is not a functional site}{
-
-These are sequence matches. An \code{AATAAA} hexamer far from the 3'
-end may not be used, and a miRNA seed match is necessary but nowhere
-near sufficient for repression, which also depends on site context,
-accessibility and whether the miRNA is expressed at all. Treat a
-seed match as a candidate site to consider, never as a validated
-target.
-}
-
-\section{On the two thresholds}{
-
-The two thresholds are deliberately expressed in different units,
-because the two pieces of biology behave differently.
-
-\code{polya_end_window} is an absolute number of nucleotides. A
-functional polyadenylation signal sits roughly 10 to 30 nucleotides
-upstream of the cleavage site whether the 3' UTR is 200 or 2000
-nucleotides long, so a window expressed as a fraction of region
-length would be too tight on a short UTR and far too generous on a
-long one.
-
-\code{are_cluster_fraction} is a fraction of the region's length,
-so that candidate designs of different lengths are compared on the
-same relative footing. Overlapping pentamers lie four nucleotides
-apart and so cluster under any sensible threshold; the fraction
-matters only for deciding how far apart two separate runs may be
-and still count together.
-
-Both raw distances are reported as columns, so any other rule can
-be applied to the result without rescanning. For a strict 20
-nucleotide polyA window, or clustering within an absolute 40
-nucleotides:
-
-\preformatted{is_signal <- elements$element_type == "polyA_signal"
-any(is_signal & elements$is_canonical &
-      elements$distance_to_end <= 20)
-elements$distance_to_nearest_are <= 40}
-}
-
 \examples{
-data(simulatedConstructs, package = "UTRunway")
-
-# CONSTRUCT_12 has nine planted AUUUA pentamers and a canonical
-# polyA signal.
-rich <- simulatedConstructs[
-  simulatedConstructs$construct_id == "CONSTRUCT_12",
-]
-elements <- scanDecayElements(utr3 = rich$utr3)
+# CONSTRUCT_12 carries nine planted AUUUA pentamers and a
+# canonical polyA signal.
+rich <- UTRunway::simulatedConstructs[12, ]
+elements <- UTRunway::scanDecayElements(utr3 = rich$utr3)
 head(x = elements, n = 10)
 
 # The summaries, derived from the result.
 sum(elements$element_type == "ARE_pentamer")
-any(elements$in_cluster, na.rm = TRUE)
 any(elements$is_canonical & elements$near_three_prime_end,
     na.rm = TRUE)
 
 # CONSTRUCT_08 has its polyA signal disrupted, so no canonical
 # hexamer is found.
-disrupted <- simulatedConstructs[
-  simulatedConstructs$construct_id == "CONSTRUCT_08",
-]
-scanDecayElements(utr3 = disrupted$utr3)
-
-# A supplied seed set, with an IUPAC ambiguity code.
-scanDecayElements(
-  utr3 = rich$utr3,
-  seeds = c(my_mirna = "ACATTCC", ambiguous = "ACTAAY")
-)
-
-# Skip the miRNA scan.
-nrow(x = scanDecayElements(utr3 = rich$utr3, seeds = character(0)))
+disrupted <- UTRunway::simulatedConstructs[8, ]
+UTRunway::scanDecayElements(utr3 = disrupted$utr3)
 
 }
 \references{
-Proudfoot, N. J. (2011). Ending the message: poly(A) signals then
-and now. \emph{Genes & Development} 25(17), 1770-1782.
-\doi{10.1101/gad.17268411}
+Bartel, D. P. (2009). MicroRNAs: target recognition and regulatory
+functions. \emph{Cell}, 136(2), 215-233.
+\href{https://doi.org/10.1016/j.cell.2009.01.002}{Link}
 
-Beaudoing, E., Freier, S., Wyatt, J. R., Claverie, J. M. and
-Gautheret, D. (2000). Patterns of variant polyadenylation signal
-usage in human genes. \emph{Genome Research} 10(7), 1001-1010.
-\doi{10.1101/gr.10.7.1001}
+Lewis, B. P., Burge, C. B. and Bartel, D. P. (2005). Conserved
+seed pairing, often flanked by adenosines, indicates that
+thousands of human genes are microRNA targets. \emph{Cell},
+120(1), 15-20.
+\href{https://doi.org/10.1016/j.cell.2004.12.035}{Link}
+
+Proudfoot, N. J. (2011). Ending the message: poly(A) signals then
+and now. \emph{Genes & Development}, 25(17), 1770-1782.
+\href{https://doi.org/10.1101/gad.17268411}{Link}
 
 Shaw, G. and Kamen, R. (1986). A conserved AU sequence from the 3'
 untranslated region of GM-CSF mRNA mediates selective mRNA
-degradation. \emph{Cell} 46(5), 659-667.
-\doi{10.1016/0092-8674(86)90341-7}
-
-Bakheet, T., Hitti, E., Al-Saif, M., Moghrabi, W. N. and Khabar, K.
-S. A. (2018). The AU-rich element landscape across human
-transcriptome reveals a large proportion in introns and regulation
-by ELAVL1/HuR. \emph{Biochimica et Biophysica Acta} 1861(2),
-167-177. \doi{10.1016/j.bbagrm.2017.12.006}
-
-Lewis, B. P., Burge, C. B. and Bartel, D. P. (2005). Conserved seed
-pairing, often flanked by adenosines, indicates that thousands of
-human genes are microRNA targets. \emph{Cell} 120(1), 15-20.
-\doi{10.1016/j.cell.2004.12.035}
-
-Bartel, D. P. (2009). MicroRNAs: target recognition and regulatory
-functions. \emph{Cell} 136(2), 215-233.
-\doi{10.1016/j.cell.2009.01.002}
+degradation. \emph{Cell}, 46(5), 659-667.
+\href{https://doi.org/10.1016/0092-8674(86)90341-7}{Link}
 }

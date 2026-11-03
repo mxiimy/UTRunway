@@ -1,143 +1,68 @@
 #' Profile Every Construct Into One Tidy Feature Table
 #'
-#' @description
-#' Runs every feature function in the package over every region of
-#' every construct and returns the results as a single long table, one
-#' row per feature value. This table is the one input that every
-#' plotting function and \code{rankCandidates()} takes, so a construct
-#' is profiled once and then drawn and scored from the same numbers.
-#'
-#' @details
-#' Rows come grouped by construct in input order, then by region in
-#' the order \code{utr5}, \code{cds}, \code{utr3}.
-#'
-#' \strong{Scoring excludes the coding sequence.} Every row carries a
-#' \code{region}, so the rows that may contribute to a score are
-#' exactly those where \code{region} is not \code{"cds"}:
-#'
-#' \preformatted{scoreable <- features[features$region != "cds", ]}
-#'
-#' Coding sequence rows are present so that a construct map can draw
-#' the whole design and a comparison can show its context, and they
-#' are deliberately left out of ranking, because the package's scope
-#' is untranslated region design. See \code{\link{profileCDS}}.
-#'
-#' @section Feature naming:
-#' \code{value} is always numeric, so that features can be compared
-#' and scored arithmetically without parsing. What the number means
-#' follows from the name:
-#'
-#' \itemize{
-#'   \item A name beginning \code{n_} is a count, and is present with
-#'     a value of zero when nothing was found, so that an absent
-#'     feature is distinguishable from an unprofiled one.
-#'   \item \code{length}, \code{gc_content}, \code{gc3_content},
-#'     \code{kozak_score}, \code{kozak_score_scaled},
-#'     \code{max_stem_nt} and \code{max_window_gc} are single summary
-#'     values for the region.
-#'   \item \code{kozak_strength_ordinal} encodes the categorical
-#'     strength as \code{0} for weak, \code{1} for adequate and
-#'     \code{2} for strong, and is \code{NA} when the context window
-#'     does not fit. The ordering is what makes it scoreable.
-#'   \item Every other name is a positional feature: one row per
-#'     occurrence, with \code{position} giving its 1-based start
-#'     within its own region and \code{value} its width in
-#'     nucleotides. The exception is \code{upstream_orf}, whose value
-#'     is the length of the open reading frame, and the two window
-#'     profiles \code{gc_window} and \code{stem_window}, whose values
-#'     are the window's GC content and longest complementary run.
-#'   \item A motif is named \code{motif_} followed by the motif's
-#'     name, and a miRNA seed site \code{mirna_seed_} followed by the
-#'     family, so \code{grepl("^motif_", feature)} selects all motif
-#'     occurrences.
-#'   \item An upstream AUG is named \code{upstream_aug_} followed by
-#'     the strength of its own initiation context, one of
-#'     \code{strong}, \code{adequate}, \code{weak} or
-#'     \code{unscored} where the context window does not fit. So
-#'     \code{grepl("^upstream_aug_", feature)} selects every upstream
-#'     AUG, and the name distinguishes a strong upstream start from a
-#'     weak one without recomputing it. The count
-#'     \code{n_upstream_aug} covers all of them regardless of
-#'     strength.
-#' }
-#'
-#' @section Positions are within a region, not the construct:
-#' \code{position} is always relative to the start of its own region.
-#' A feature at position 40 of the \code{cds} is 40 nucleotides into
-#' the coding sequence, not 40 nucleotides into the construct. To lay
-#' the regions end to end for a whole-construct map, add the lengths
-#' of the preceding regions, which are themselves rows of this table.
+#' A function that runs every feature function in the package over
+#' every region of every construct and returns the results as a
+#' single long table, one row per feature value. This table is the
+#' one input every plotting function and rankCandidates() takes, so a
+#' construct is profiled once and then drawn and scored from the same
+#' numbers. Every row carries a region, so the rows that may
+#' contribute to a score are exactly those where region is not
+#' "cds": coding sequence rows are present for context and are
+#' excluded from ranking. Positions are relative to the start of each
+#' region, not to the whole construct.
 #'
 #' @param constructs Constructs to profile: an object from
-#'   \code{\link{readConstruct}}, or anything it accepts, namely a
-#'   FASTA file path or a data frame with the columns
-#'   \code{construct_id}, \code{utr5}, \code{cds} and \code{utr3}.
-#'   Input that has not been validated is passed through
-#'   \code{\link{readConstruct}} first.
-#' @param ... Optional named arguments passed on to the feature
-#'   functions: \code{window}, \code{step}, \code{min_stem} and
-#'   \code{min_loop} go to \code{\link{estimateStructure}};
-#'   \code{seeds}, \code{polya_end_window} and
-#'   \code{are_cluster_fraction} go to
-#'   \code{\link{scanDecayElements}}; and \code{motifs} goes to
-#'   \code{\link{scanMotifs}}, where it replaces the built-in motifs
-#'   in every region. Any other name is an error rather than being
-#'   ignored, so that a mistyped argument cannot pass unnoticed.
+#'    readConstruct(), or anything it accepts, namely a FASTA file
+#'    path or a data frame with the columns construct_id, utr5, cds
+#'    and utr3. Input that has not been validated is passed through
+#'    readConstruct() first.
 #'
-#' @return A data frame with one row per feature value and these
-#'   columns:
-#'   \describe{
-#'     \item{construct_id}{Character. Which construct the row
-#'       describes.}
-#'     \item{region}{Character. \code{"utr5"}, \code{"cds"} or
-#'       \code{"utr3"}, the region the feature was computed from.}
-#'     \item{feature}{Character. The feature's name, as described
-#'       above.}
-#'     \item{value}{Numeric. The feature's value.}
-#'     \item{position}{Integer. 1-based start of a positional feature
-#'       within its region, or \code{NA} for a region summary.}
-#'   }
+#' @param ... Optional named arguments passed to the feature
+#'    functions: window, step, min_stem and min_loop go to
+#'    estimateStructure(); seeds, polya_end_window and
+#'    are_cluster_fraction go to scanDecayElements(); and motifs goes
+#'    to scanMotifs(). Any other name is an error rather than being
+#'    ignored, so a mistyped argument cannot pass unnoticed.
+#'
+#' @return Returns a data frame of class "data.frame" with one row
+#'    per feature value containing:
+#' \itemize{
+#'   \item construct_id - A character value naming the construct the
+#'      row describes.
+#'   \item region - A character value, one of "utr5", "cds" or
+#'      "utr3".
+#'   \item feature - A character value giving the feature's name. A
+#'      name beginning n_ is a count, present as zero when nothing
+#'      was found; names such as motif_ and mirna_seed_ carry the
+#'      specific motif or miRNA family.
+#'   \item value - A double giving the feature's value, always
+#'      numeric so features can be scored without parsing.
+#'   \item position - An integer giving the 1-based start of a
+#'      positional feature within its region, or NA for a region
+#'      summary.
+#' }
 #'
 #' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#'
 #' # Profile two candidates.
-#' features <- profileConstruct(
-#'   constructs = simulatedConstructs[c(1, 5), ]
-#' )
+#' features <- UTRunway::profileConstruct(
+#'    constructs = UTRunway::simulatedConstructs[c(1, 5), ])
 #' head(x = features, n = 12)
-#'
-#' # The region summaries for one construct's 5' UTR.
-#' summaries <- features[
-#'   features$construct_id == "CONSTRUCT_01" &
-#'     features$region == "utr5" &
-#'     is.na(features$position),
-#'   c("feature", "value")
-#' ]
-#' summaries
 #'
 #' # The rows that ranking may use: everything but the CDS.
 #' table(features$region)
 #' nrow(x = features[features$region != "cds", ])
 #'
 #' # One feature across candidates, which is what ranking compares.
-#' features[
-#'   features$feature == "n_upstream_orf",
-#'   c("construct_id", "value")
-#' ]
+#' features[features$feature == "n_upstream_orf",
+#'          c("construct_id", "value")]
 #'
-#' # Positional features, ready to draw on a map.
-#' head(
-#'   x = features[
-#'     !is.na(features$position) &
-#'       features$feature != "gc_window" &
-#'       features$feature != "stem_window",
-#'   ],
-#'   n = 8
-#' )
+#' @references
+#' Wickham, H. (2016). \emph{ggplot2: Elegant Graphics for Data
+#' Analysis}. Springer-Verlag New York.
+#' \href{https://ggplot2.tidyverse.org}{Link}
 #'
-#' @importFrom Biostrings DNAString letterFrequency
 #' @export
+#' @importFrom Biostrings DNAString letterFrequency
 profileConstruct <- function(constructs, ...) {
   constructs <- readConstruct(x = constructs)
 

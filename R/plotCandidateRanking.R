@@ -1,58 +1,40 @@
-#' Plot the Ranking With How Much It Depends on the Weights
+#' Plot The Ranking With How Much It Depends On The Weights
 #'
-#' @description
-#' Draws each candidate's rank as a point at its median across many
-#' perturbed weightings, with an interval spanning the ranks it took.
-#' A tight interval means the conclusion survives the choice of
-#' weights; a wide one is a warning that the order is an artefact of
-#' them.
+#' A function that draws each candidate's rank as a point at its
+#' median across many perturbed weightings, with an interval spanning
+#' the ranks it took. A tight interval means the conclusion survives
+#' the choice of weights; a wide one is a warning that the order is
+#' an artefact of them. The open marker is the rank under the
+#' unperturbed weights. Read the intervals before the order: a
+#' candidate whose interval spans half the field has no settled
+#' position, and two candidates whose intervals overlap heavily are
+#' not meaningfully separated. A tight interval establishes
+#' robustness to the weights only, not that the features or their
+#' directions are right.
 #'
-#' @details
-#' Read the intervals before the order. A candidate whose interval
-#' spans half the field has no settled position: it came first under
-#' some weightings and nearly last under others, and calling it
-#' second-best would be reading precision that is not there. Two
-#' candidates whose intervals overlap heavily are not meaningfully
-#' separated.
+#' @param stability An object of class
+#'    "utrunway_rank_stability" produced by rankStability().
 #'
-#' The open marker is the rank under the unperturbed weights, the
-#' one \code{\link{rankCandidates}} reports. Where it sits away from
-#' the filled median, that candidate's rank is sensitive to the
-#' weighting in a particular direction.
-#'
-#' @section What a tight interval does and does not establish:
-#' A tight interval means the ordering is robust \emph{to the
-#' weights}. It says nothing about whether the features are the right
-#' ones, whether their directions are right, or whether any candidate
-#' will perform well experimentally. A ranking can be perfectly
-#' stable and still rest on the wrong assumptions.
-#'
-#' @param stability An object from \code{\link{rankStability}}.
-#'
-#' @return A \pkg{ggplot2} object, which can be customised further.
+#' @return Returns a ggplot2 object showing each candidate's median
+#'    rank, the full range of ranks taken, and the rank under the
+#'    weights as given, which can be customised further.
 #'
 #' @examples
-#' data(simulatedConstructs, package = "UTRunway")
-#' features <- profileConstruct(
-#'   constructs = simulatedConstructs[1:6, ]
-#' )
+#' features <- UTRunway::profileConstruct(
+#'    constructs = UTRunway::simulatedConstructs[1:6, ])
 #'
 #' set.seed(seed = 1)
-#' plotCandidateRanking(
-#'   stability = rankStability(feature_table = features, n = 100)
-#' )
+#' UTRunway::plotCandidateRanking(
+#'    stability = UTRunway::rankStability(feature_table = features,
+#'                                        n = 100))
 #'
-#' # Exploring the weights more widely widens the intervals, which is
-#' # the honest picture of how much the order depends on them.
-#' set.seed(seed = 1)
-#' plotCandidateRanking(
-#'   stability = rankStability(
-#'     feature_table = features, n = 100, concentration = 2
-#'   )
-#' )
+#' @references
+#' Wickham, H. (2016). \emph{ggplot2: Elegant Graphics for Data
+#' Analysis}. Springer-Verlag New York.
+#' \href{https://ggplot2.tidyverse.org}{Link}
 #'
-#' @importFrom ggplot2 .data
 #' @export
+#' @importFrom ggplot2 .data
 plotCandidateRanking <- function(stability) {
   validateStabilityObject(stability = stability)
   palette <- utrunwayPalette()
