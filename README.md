@@ -94,10 +94,12 @@ The package also ships `simulatedConstructs`, a dataset of twelve
 synthetic constructs with deliberately planted features, and
 `print()` methods for the ranking and stability objects.
 
-<div class="figure">
-<img src="man/figures/README-overview-1.png" alt="Workflow diagram: candidate designs as FASTA or a data frame feed into readConstruct, then profileConstruct, which produces one tidy feature table. From that table two branches run: figures, comprising the construct map, region profile and candidate comparison; and ranking, comprising rankCandidates, the score breakdown, rankStability and the ranking plot." width="100%" />
-<p class="caption">plot of chunk overview</p>
-</div>
+![Overview of UTRunway. The three regions of a candidate construct enter readConstruct(), flow through profileConstruct() into one tidy feature table, and branch from there to rankCandidates() and rankStability() on one side and the five plotting functions on the other, producing a ranked comparison and a construct map. The coding sequence path is dashed and grey because it is context and is never scored.](inst/extdata/MO_M_A1.png)
+
+The diagram was drawn in R, not in an external tool. It is generated
+by `data-raw/makeOverviewImage.R`, which is included in the
+repository, so it can be reproduced and edited alongside the code it
+describes.
 
 The signature figure is the construct map. One candidate, every
 feature class on its own labelled row, all three regions on a shared

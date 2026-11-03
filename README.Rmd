@@ -103,65 +103,12 @@ The package also ships `simulatedConstructs`, a dataset of twelve
 synthetic constructs with deliberately planted features, and
 `print()` methods for the ranking and stability objects.
 
-```{r overview, echo = FALSE, fig.width = 9.5, fig.height = 3.6, fig.alt = "Workflow diagram: candidate designs as FASTA or a data frame feed into readConstruct, then profileConstruct, which produces one tidy feature table. From that table two branches run: figures, comprising the construct map, region profile and candidate comparison; and ranking, comprising rankCandidates, the score breakdown, rankStability and the ranking plot."}
-library(ggplot2)
+![Overview of UTRunway. The three regions of a candidate construct enter readConstruct(), flow through profileConstruct() into one tidy feature table, and branch from there to rankCandidates() and rankStability() on one side and the five plotting functions on the other, producing a ranked comparison and a construct map. The coding sequence path is dashed and grey because it is context and is never scored.](inst/extdata/MO_M_A1.png)
 
-boxes <- data.frame(
-  label = c(
-    "Candidate designs\nFASTA or data frame",
-    "readConstruct()\nvalidate",
-    "profileConstruct()\ntidy feature table",
-    "plotConstructMap()\nplotRegionProfile()\nplotCandidateComparison()",
-    "rankCandidates()\nplotScoreBreakdown()",
-    "rankStability()\nplotCandidateRanking()"
-  ),
-  x = c(1, 2.35, 3.8, 5.5, 5.5, 7.2),
-  y = c(2, 2, 2, 3.05, 0.95, 0.95),
-  width = c(1.05, 1.05, 1.25, 1.6, 1.4, 1.5),
-  height = c(0.78, 0.78, 0.78, 1.0, 0.78, 0.78),
-  kind = c("input", "step", "step", "figure", "score", "score"),
-  stringsAsFactors = FALSE
-)
-arrows <- data.frame(
-  x = c(1.55, 2.9, 4.45, 4.45, 6.22),
-  xend = c(1.8, 3.15, 4.68, 4.78, 6.43),
-  y = c(2, 2, 2.2, 1.8, 0.95),
-  yend = c(2, 2, 2.75, 1.1, 0.95)
-)
-fills <- c(
-  input = "#e4e3df", step = "#cde2fb", figure = "#d9ecd9",
-  score = "#fbe6cd"
-)
-
-ggplot(boxes) +
-  geom_segment(
-    data = arrows,
-    aes(x = x, xend = xend, y = y, yend = yend),
-    arrow = arrow(length = unit(0.16, "cm"), type = "closed"),
-    colour = "#52514e", linewidth = 0.45
-  ) +
-  geom_rect(
-    aes(
-      xmin = x - width / 2, xmax = x + width / 2,
-      ymin = y - height / 2, ymax = y + height / 2, fill = kind
-    ),
-    colour = "#898781", linewidth = 0.35
-  ) +
-  geom_text(
-    aes(x = x, y = y, label = label),
-    size = 2.85, colour = "#0b0b0b", lineheight = 1.15
-  ) +
-  annotate(
-    geom = "text", x = 5.5, y = 0.18,
-    label = "Scoring uses 5' UTR and 3' UTR features only; CDS is context",
-    size = 2.6, colour = "#52514e"
-  ) +
-  scale_fill_manual(values = fills, guide = "none") +
-  scale_x_continuous(limits = c(0.35, 8.1)) +
-  scale_y_continuous(limits = c(0, 3.75)) +
-  theme_void() +
-  theme(plot.background = element_rect(fill = "#fcfcfb", colour = NA))
-```
+The diagram was drawn in R, not in an external tool. It is generated
+by `data-raw/makeOverviewImage.R`, which is included in the
+repository, so it can be reproduced and edited alongside the code it
+describes.
 
 The signature figure is the construct map. One candidate, every
 feature class on its own labelled row, all three regions on a shared
